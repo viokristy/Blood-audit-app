@@ -1,0 +1,1035 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Blood Draw Audit</title>
+<style>
+/* Layout: single-page app, bottom tab bar (New / History / Export), one screen visible at a time.
+   Color: clinical teal + ink neutrals; red/amber/green only for compliance signal. */
+:root{
+  --bg:#F4F7F7; --surface:#FFFFFF; --surface-2:#EAF0F0; --border:#D7E2E2;
+  --ink:#16302E; --ink-dim:#5B7472; --accent:#0E7C7B; --accent-ink:#FFFFFF;
+  --yes:#1E8E5A; --yes-bg:#E3F5EA; --no:#C4432B; --no-bg:#FBE7E2;
+  --na:#7A8B8A; --na-bg:#EAEEED; --warn-bg:#FFF4D6; --warn-ink:#7A5B00;
+  --shadow: 0 1px 2px rgba(20,40,38,.06), 0 4px 14px rgba(20,40,38,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1716; --surface:#172422; --surface-2:#1E2D2B; --border:#2B3B38;
+    --ink:#E7EFEE; --ink-dim:#9AB0AD; --accent:#43C6B8; --accent-ink:#06211F;
+    --yes:#55C487; --yes-bg:#163227; --no:#E8836A; --no-bg:#3A2420;
+    --na:#8EA3A0; --na-bg:#23302E; --warn-bg:#3A3215; --warn-ink:#E8C76B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1716; --surface:#172422; --surface-2:#1E2D2B; --border:#2B3B38;
+  --ink:#E7EFEE; --ink-dim:#9AB0AD; --accent:#43C6B8; --accent-ink:#06211F;
+  --yes:#55C487; --yes-bg:#163227; --no:#E8836A; --no-bg:#3A2420;
+  --na:#8EA3A0; --na-bg:#23302E; --warn-bg:#3A3215; --warn-ink:#E8C76B;
+  color-scheme: dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.ans-btn,.chip,.na-toggle,.tab,.linklike,.btn{font-family:inherit;-webkit-appearance:none;appearance:none;touch-action:manipulation;margin:0;text-align:center}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex; flex-direction:column; min-height:100%;
+}
+h1,h2,h3{font-family:'Fraunces',Georgia,serif; margin:0; text-wrap:balance}
+.app{flex:1; display:flex; flex-direction:column; max-width:640px; width:100%; margin:0 auto; min-width:0}
+header.top{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+  background:var(--bg); padding-block:14px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:9;background:var(--bg)}
+header.top .brand{display:flex; align-items:center; gap:10px}
+header.top .mark{width:30px;height:30px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+header.top .mark svg{width:16px;height:16px}
+header.top h1{font-size:17px;color:var(--ink)}
+header.top .sub{font-size:11px;color:var(--ink-dim);letter-spacing:.02em}
+main{flex:1; padding-bottom:92px; min-width:0}
+.screen{display:none; padding-block:4px 20px}
+.screen.active{display:block}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; box-shadow:var(--shadow)}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12px; font-weight:600; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px}
+.field input[type=text], .field input[type=time], .field input[type=date], .field input[type=number], .field textarea, .field select{
+  width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--ink); font-size:15px; font-family:inherit;
+}
+.field textarea{min-height:60px; resize:vertical}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+@media (max-width:420px){.row2{grid-template-columns:1fr}}
+.chip-group{display:flex; gap:8px; flex-wrap:wrap}
+.chip{
+  padding:9px 14px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--ink); font-size:14px; font-weight:600; cursor:pointer; user-select:none;
+}
+.chip.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.section-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:22px 0 10px}
+.section-head h2{font-size:18px}
+.section-head .pct{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; padding:3px 9px; border-radius:999px}
+.section-sub{font-size:12px; color:var(--ink-dim); font-style:italic; margin:-6px 0 10px}
+.item{border-top:1px solid var(--border); padding:13px 0}
+.item:first-child{border-top:none; padding-top:2px}
+.item .text{font-size:14.5px; line-height:1.4; margin-bottom:10px}
+.item .idtag{font-size:11px; font-weight:700; color:var(--accent); margin-right:6px}
+.ans-group{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+.ans-btn{
+  padding:9px 4px; text-align:center; border-radius:9px; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--ink-dim); font-size:13px; font-weight:700; cursor:pointer; min-width:0;
+}
+.ans-btn.sel-Yes{background:var(--yes-bg); color:var(--yes); border-color:var(--yes)}
+.ans-btn.sel-No{background:var(--no-bg); color:var(--no); border-color:var(--no)}
+.ans-btn.sel-N-O, .ans-btn.sel-N-A{background:var(--na-bg); color:var(--na); border-color:var(--na)}
+.ans-group input[type=radio]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ans-btn:has(input[value="Yes"]:checked){background:var(--yes-bg); color:var(--yes); border-color:var(--yes)}
+.ans-btn:has(input[value="No"]:checked){background:var(--no-bg); color:var(--no); border-color:var(--no)}
+.ans-btn:has(input[value="N/O"]:checked), .ans-btn:has(input[value="N/A"]:checked){background:var(--na-bg); color:var(--na); border-color:var(--na)}
+.note-flag{margin-top:10px}
+.note-flag input{width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--no); background:var(--no-bg); color:var(--ink); font-size:13.5px}
+.volume-row{display:flex; gap:10px; align-items:center}
+.volume-row .field{flex:1; margin-bottom:0}
+.sec-note{margin-top:14px}
+.sec-note label{font-size:12px; color:var(--ink-dim); font-weight:600}
+.sec-note textarea{width:100%; margin-top:6px}
+.summary-bar{height:8px; border-radius:999px; background:var(--surface-2); overflow:hidden}
+.summary-bar > div{height:100%; border-radius:999px}
+.save-bar{position:sticky; bottom:0; padding-block:12px calc(10px + env(safe-area-inset-bottom,0px)); background:linear-gradient(to top, var(--bg) 70%, transparent)}
+.btn{
+  display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:12px;
+  background:var(--accent); color:var(--accent-ink); font-size:15px; font-weight:700; border:none; cursor:pointer;
+}
+.btn.secondary{background:var(--surface-2); color:var(--ink); border:1px solid var(--border)}
+.btn.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--surface); border-top:1px solid var(--border);
+  display:flex; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 4px 8px; color:var(--ink-dim); cursor:pointer; font-size:11px; font-weight:600}
+.tab.active{color:var(--accent)}
+.tab svg{width:21px;height:21px}
+.obs-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 0; border-top:1px solid var(--border); cursor:pointer; touch-action:manipulation}
+.obs-row:first-child{border-top:none}
+.obs-row .meta{min-width:0}
+.obs-row .meta .d{font-weight:700; font-size:14.5px}
+.obs-row .meta .s{font-size:12.5px; color:var(--ink-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pill{font-weight:700; font-size:13px; padding:4px 10px; border-radius:999px; font-variant-numeric:tabular-nums; flex-shrink:0}
+.pill.good{background:var(--yes-bg); color:var(--yes)}
+.pill.bad{background:var(--no-bg); color:var(--no)}
+.pill.mid{background:var(--warn-bg); color:var(--warn-ink)}
+.empty{text-align:center; padding:50px 20px; color:var(--ink-dim)}
+.empty h3{color:var(--ink); margin-bottom:8px; font-size:17px}
+.toast{
+  position:fixed; bottom:calc(76px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:999px; font-size:13.5px; font-weight:600;
+  opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; z-index:30; white-space:nowrap;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.stat{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:var(--shadow)}
+.stat .n{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; font-family:'Fraunces',serif}
+.stat .l{font-size:11.5px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.03em; margin-top:2px}
+.secbar-row{display:flex; align-items:center; gap:10px; padding:8px 0}
+.secbar-row .lab{width:30px; font-weight:700; font-size:13px; flex-shrink:0}
+.secbar-row .track{flex:1; height:9px; border-radius:999px; background:var(--surface-2); overflow:hidden}
+.secbar-row .track > div{height:100%; border-radius:999px; background:var(--accent)}
+.secbar-row .val{width:44px; text-align:right; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; flex-shrink:0}
+select#targetPct{width:auto; display:inline-block; padding:6px 8px}
+.linklike{color:var(--accent); font-weight:600; font-size:13.5px; background:none; border:none; padding:0; cursor:pointer}
+.formula-note{font-size:12px; color:var(--ink-dim); line-height:1.5; margin-top:4px}
+.hbar-row{display:flex; align-items:center; gap:10px; padding:7px 0}
+.hbar-row .lab{width:150px; flex-shrink:0; font-size:12.5px; line-height:1.3}
+.hbar-row .lab .id{font-weight:700; color:var(--accent); margin-right:4px}
+.hbar-row .track{flex:1; height:16px; border-radius:6px; background:var(--surface-2); overflow:hidden; min-width:0}
+.hbar-row .track > div{height:100%; border-radius:6px; background:var(--no)}
+.hbar-row .val{width:30px; text-align:right; font-size:12.5px; font-weight:700; flex-shrink:0; font-variant-numeric:tabular-nums}
+.nursecard{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--border)}
+.nursecard:first-child{border-top:none}
+.nursecard .who{font-weight:700; font-size:14px}
+.nursecard .cnt{font-size:12px; color:var(--ink-dim)}
+.card.na{opacity:.45; filter:grayscale(.6)}
+.card.na .item, .card.na .sec-note{pointer-events:none}
+.na-toggle{padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink-dim); font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap}
+.na-toggle.on{background:var(--na); color:var(--surface); border-color:var(--na)}
+.section-head{cursor:pointer;touch-action:manipulation}
+.section-head h2{display:flex; align-items:center; gap:7px}
+.chev{display:inline-block; transition:transform .18s; flex-shrink:0; color:var(--ink-dim)}
+.chev.collapsed{transform:rotate(-90deg)}
+.card.collapsed-body{display:none}
+.drawsummary{font-size:12.5px; color:var(--ink-dim); margin:2px 0 16px}
+.drawsummary b{color:var(--ink)}
+.segwrap{display:flex; height:10px; border-radius:999px; overflow:hidden; width:120px; background:var(--surface-2); flex-shrink:0}
+.tabbar .tab{flex:1}
+</style>
+
+<div class="app">
+<header class="top">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c3 4 6 7.5 6 11a6 6 0 1 1-12 0c0-3.5 3-7 6-11z"/></svg></div>
+    <div><h1 id="pageTitle">New Observation</h1><div class="sub">Blood Draw &amp; Culture Audit</div></div>
+  </div>
+  <button class="linklike" id="newBtn" hidden>+ New</button>
+</header>
+
+<main>
+  <section class="screen active" id="screen-new"></section>
+  <section class="screen" id="screen-history"></section>
+  <section class="screen" id="screen-insights"></section>
+  <section class="screen" id="screen-export"></section>
+</main>
+</div>
+
+<div class="tabbar">
+  <button type="button" class="tab active" data-tab="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New</button>
+  <button type="button" class="tab" data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-7 3L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>History</button>
+  <button type="button" class="tab" data-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V10M11 19V5M18 19v-7"/></svg>Insights</button>
+  <button type="button" class="tab" data-tab="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Export</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Checklist model (mirrors the paper audit tool) ===================== */
+const DRAW_TYPES = [
+  { id:'bloods', label:'Bloods' },
+  { id:'cultures', label:'Blood Cultures' },
+  { id:'cbg', label:'CBG' }
+];
+const CHECKLIST = [
+  { id:'A', title:'Pre-Procedure Preparation & Supplies', sub:'Routine Bloods / Blood Culture — trolley-based', applies:['bloods','cultures'], items:[
+    {id:'A1',text:'Trolley cleaned before preparation'},
+    {id:'A2',text:'Blood collected in Salama before entering the room'},
+    {id:'A3',text:'Sunquest scanner taken to bedside'},
+    {id:'A4',text:'Zebra printer taken to bedside'},
+    {id:'A5',text:'Biohazard transport bag taken to bedside'},
+    {id:'A6',text:'Date written on the IV cannula dressing outside'},
+    {id:'A7',text:'Ivy extension flushed and left in the original package'},
+    {id:'A8',text:'Emesis basin and label carried for VBG'}
+  ]},
+  { id:'B', title:'Regular Blood Collection', applies:['bloods'], items:[
+    {id:'B1',text:'Hand hygiene performed before entering the room or before donning gloves'},
+    {id:'B2',text:'Nurse introduced themself (if first contact) and / or explained the procedure'},
+    {id:'B3',text:'Gloves worn inside the room'},
+    {id:'B4',text:'Patient identity confirmed using at least two identifiers'},
+    {id:'B5',text:'Aseptic non-touch technique maintained throughout'},
+    {id:'B6',text:'Chlorhexidine caps applied to IV extension'}
+  ]},
+  { id:'C', title:'Blood Culture — Sterile Technique', applies:['cultures'], items:[
+    {id:'C1',text:'Hand hygiene performed before entering the room or before donning gloves'},
+    {id:'C2',text:'Nurse introduced themself (if first contact) and / or explained the procedure'},
+    {id:'C3',text:'Patient identity confirmed using at least two identifiers'},
+    {id:'C4',text:'Sterile gloves donned correctly'},
+    {id:'C5',text:'Chlorhexidine-based antiseptic applied to skin using back-and-forth friction for a MINIMUM of 30 seconds'},
+    {id:'C6',text:'Site allowed to dry completely before puncture (no fanning, wiping, or blowing on the site)'},
+    {id:'C7',text:'Sterile technique maintained throughout the procedure'},
+    {id:'C8',text:'Prepped site NOT re-palpated after antisepsis (or sterile glove used if palpation unavoidable)'},
+    {id:'C9',text:'Volume of blood collected for each blood culture bottle (mL)', type:'volume'},
+    {id:'C10',text:'Chlorhexidine caps applied to IV extension'},
+    {id:'C11',text:'Blood culture collection site', type:'site'}
+  ]},
+  { id:'D', title:'Post-Procedure (Routine Bloods & Blood Culture)', applies:['bloods','cultures'], items:[
+    {id:'D1',text:'Labels attached to the tube(s), post-procedure, inside the room'},
+    {id:'D2',text:'Labelled tube(s) placed into the biohazard bag'},
+    {id:'D3',text:'Assisting nurse for VBG removed gloves in the room'},
+    {id:'D4',text:'Used items thrown away in correct bin in the room'},
+    {id:'D5',text:'Sharps discarded in sharp box'},
+    {id:'D6',text:'Visible blood stains cleaned'},
+    {id:'D7',text:'Gloves removed inside the room and discarded in yellow bin'},
+    {id:'D8',text:'Next steps explained to patient / family (e.g., waiting time, what happens next)'},
+    {id:'D9',text:'Hand hygiene performed when exiting room'}
+  ]},
+  { id:'E', title:'Post-Procedure Exit', sub:'Routine Bloods / Blood Culture — trolley-based', applies:['bloods','cultures'], items:[
+    {id:'E1',text:'All unused / opened items removed from the trolley (no clutter left behind)'},
+    {id:'E2',text:'Trolley surfaces wiped / disinfected after the procedure'}
+  ]},
+  { id:'F', title:'CBG Collection', applies:['cbg'], items:[
+    {id:'F1',text:'CBG supplies carried in an emesis basin'},
+    {id:'F2',text:'Hand hygiene performed before entering the room or before touching the patient'},
+    {id:'F3',text:'Nurse introduced themself (if first contact) and / or explained the procedure'},
+    {id:'F4',text:'Gloves removed in the room'}
+  ]}
+];
+const ANSWERS = ['Yes','No','N/O','N/A'];
+const SITES = ['CVC','Port','PIV','Butterfly'];
+const SCORED_ITEMS = CHECKLIST.flatMap(s=>s.items.filter(i=>!i.type));
+const TOTAL_SCORED = SCORED_ITEMS.length;
+
+const TOGGLEABLE_SECTIONS = ['B','C','F']; // only the draw-type-specific sections can be marked N/A; A/D/E always apply
+function sectionApplies(sec,o){
+  if(!TOGGLEABLE_SECTIONS.includes(sec.id)) return true;
+  return !(o && o.naSections && o.naSections[sec.id]);
+}
+function drawLabel(o){
+  const parts=[];
+  if(sectionApplies(CHECKLIST[1],o)) parts.push('Bloods');
+  if(sectionApplies(CHECKLIST[2],o)) parts.push('Blood Cultures');
+  if(sectionApplies(CHECKLIST[5],o)) parts.push('CBG');
+  return parts.length ? parts.join(' + ') : '—';
+}
+function pctOf(r){ return (r.yes+r.no) ? r.yes/(r.yes+r.no) : null; }
+function scoreObs(o){
+  const tot={yes:0,no:0,nobs:0,na:0,open:0,sections:{}};
+  for(const s of CHECKLIST){
+    const app=sectionApplies(s,o);
+    const r={yes:0,no:0,nobs:0,na:0,open:0,applicable:app};
+    for(const it of s.items){
+      if(it.type) continue;
+      const a=app ? ((o.answers||{})[it.id]||'') : 'N/A';
+      if(a==='Yes') r.yes++; else if(a==='No') r.no++;
+      else if(a==='N/O') r.nobs++; else if(a==='N/A') r.na++; else r.open++;
+    }
+    r.pct=pctOf(r); tot.sections[s.id]=r;
+    for(const k of ['yes','no','nobs','na','open']) tot[k]+= app?r[k]:0;
+  }
+  tot.pct=pctOf(tot);
+  return tot;
+}
+function sortObs(list){
+  return [...list].sort((a,b)=>
+    (a.date||'').localeCompare(b.date||'') ||
+    (a.startTime||'').localeCompare(b.startTime||'') ||
+    (a.createdAt||'').localeCompare(b.createdAt||''));
+}
+function colLetter(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; }
+
+// ExcelJS is only needed for the Export tab's download button, so it's loaded on demand —
+// the checklist itself never waits on this external script or on network access.
+let _exceljsLoad = null;
+function loadExcelJS(){
+  if(window.ExcelJS) return Promise.resolve();
+  if(_exceljsLoad) return _exceljsLoad;
+  _exceljsLoad = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload = ()=>resolve();
+    s.onerror = ()=>{ _exceljsLoad = null; reject(new Error('exceljs failed to load')); };
+    document.head.appendChild(s);
+  });
+  return _exceljsLoad;
+}
+
+/* ===================== Excel workbook builder (same layout as the paper score sheet) ===================== */
+function buildWorkbook(obsInput, target){
+  const obsList = sortObs(obsInput);
+  target = typeof target==='number' ? target : 0.9;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Blood Draw Audit app';
+  wb.calcProperties.fullCalcOnLoad = true;
+  const N = Math.max(30, obsList.length+10);
+  const C0=4, CL=C0+N-1, LC=colLetter(CL);
+  const fill = argb=>({type:'pattern',pattern:'solid',fgColor:{argb}});
+  const F = {title:'FF0F4C5C',sec:'FFD9E7EA',sub:'FFEFF5F6',input:'FFFFF7D6',auto:'FFE3EEF8',head:'FF244B57',note:'FFFAFAF7'};
+  const thin={style:'thin',color:{argb:'FFC9D3D6'}};
+  const border={top:thin,left:thin,bottom:thin,right:thin};
+
+  const ws = wb.addWorksheet('Audit Data');
+  ws.getColumn(1).width=7; ws.getColumn(2).width=62; ws.getColumn(3).width=15;
+  for(let c=C0;c<=CL;c++) ws.getColumn(c).width=17;
+
+  const cnt=(rng,v)=>`COUNTIF(${rng},"${v}")`;
+  const pctF=rng=>`IF((${cnt(rng,'Yes')}+${cnt(rng,'No')})=0,"",${cnt(rng,'Yes')}/(${cnt(rng,'Yes')}+${cnt(rng,'No')}))`;
+  const ptsF=rng=>`IF((${cnt(rng,'Yes')}+${cnt(rng,'No')})=0,"",${cnt(rng,'Yes')}&" / "&(${cnt(rng,'Yes')}+${cnt(rng,'No')}))`;
+  const style=(cell,o)=>{ Object.assign(cell,o); };
+
+  let r=1;
+  ws.mergeCells(`A1:${LC}1`);
+  style(ws.getCell('A1'),{value:'BLOOD COLLECTION & BLOOD CULTURE SAMPLING — Audit Score Sheet',font:{bold:true,size:15,color:{argb:'FFFFFFFF'}},fill:fill(F.title),alignment:{vertical:'middle'}});
+  ws.getRow(1).height=28;
+  ws.mergeCells(`A2:${LC}2`);
+  style(ws.getCell('A2'),{value:'Choose Yes / No / N/O / N/A in the yellow cells (▼ dropdown). Score = Yes ÷ (Yes + No): every Yes is 1 point, a No scores 0, and N/A or N/O items are left out of the total. Example: a section of 7 items with 1 N/A leaves 6; if 3 of those 6 are Yes, the score is 3 / 6 = 50%. One observation per column; notes go in the row under each section.',alignment:{wrapText:true,vertical:'top'},font:{size:10,italic:true}});
+  ws.getRow(2).height=44;
+
+  r=4;
+  const hdr=ws.getRow(r);
+  hdr.getCell(2).value='Observation'; hdr.getCell(3).value='ALL OBSERVATIONS';
+  for(let i=0;i<N;i++) hdr.getCell(C0+i).value='Observation '+(i+1);
+  for(let c=1;c<=CL;c++) style(hdr.getCell(c),{font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center',vertical:'middle',wrapText:true}});
+  r++;
+
+  const details=[
+    ['Date', o=>o.date?(()=>{const [y,m,d]=o.date.split('-').map(Number); return new Date(Date.UTC(y,m-1,d));})():null,'dd-mmm-yyyy'],
+    ['Start time', o=>o.startTime||null],
+    ['Finish time', o=>o.finishTime||null],
+    ['Unit / Area', o=>o.unit||null],
+    ['Location', o=>o.location||null],
+    ['Observer / Auditor', o=>o.observer||null],
+    ['Type of draw observed', o=>drawLabel(o)==='—'?null:drawLabel(o)],
+    ['Trolley prepared by', o=>o.trolleyPrep||null],
+    ['Cannulating nurse', o=>o.cannulating||null],
+    ['Assisting nurse — VBG support', o=>o.assisting||null],
+    ['Trolley cleaned by (post-procedure)', o=>o.trolleyCleaned||null]
+  ];
+  const detailRow={};
+  for(const [label,get,fmt] of details){
+    const row=ws.getRow(r); detailRow[label]=r;
+    style(row.getCell(2),{value:label+'  →',font:{bold:true}});
+    row.getCell(3).value='—';
+    for(let i=0;i<N;i++){
+      const cell=row.getCell(C0+i); const v=obsList[i]?get(obsList[i]):null;
+      if(v!==null&&v!==undefined) cell.value=v;
+      if(fmt) cell.numFmt=fmt;
+      cell.fill=fill(F.input); cell.border=border; cell.alignment={wrapText:true,vertical:'top'};
+    }
+    r++;
+  }
+  const hrow=ws.getRow(r);
+  hrow.getCell(1).value='#'; hrow.getCell(2).value='Checklist Item'; hrow.getCell(3).value='Score %';
+  for(let i=0;i<N;i++) hrow.getCell(C0+i).value='▼ Select answer';
+  for(let c=1;c<=CL;c++) style(hrow.getCell(c),{font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center'}});
+  r++;
+
+  const firstItemRow=r+1;
+  const scoreRows=[]; const sectionScoreRow={}; const cPctRanges=[];
+  for(const s of CHECKLIST){
+    const sr=ws.getRow(r);
+    sr.getCell(1).value=s.id; sr.getCell(2).value=s.title;
+    for(let c=1;c<=CL;c++) style(sr.getCell(c),{font:{bold:true,size:12},fill:fill(F.sec)});
+    r++;
+    if(s.sub){
+      const row=ws.getRow(r); row.getCell(2).value=s.sub;
+      for(let c=1;c<=CL;c++) style(row.getCell(c),{font:{italic:true,size:10},fill:fill(F.sub)});
+      r++;
+    }
+    const secStart=r;
+    for(const it of s.items){
+      if(it.type==='volume'){
+        for(const b of [1,2]){
+          const row=ws.getRow(r);
+          if(b===1) row.getCell(1).value=it.id;
+          row.getCell(2).value=`Blood culture volume — Bottle ${b} (mL)`;
+          style(row.getCell(3),{value:{formula:`IF(COUNT(D${r}:${LC}${r})=0,"",AVERAGE(D${r}:${LC}${r}))`},numFmt:'0.0" mL"',fill:fill(F.auto)});
+          for(let i=0;i<N;i++){
+            const cell=row.getCell(C0+i); const o=obsList[i];
+            const v = o && sectionApplies(s,o) ? o['vol'+b] : null;
+            if(v!==null&&v!==undefined&&v!=='') cell.value=Number(v);
+            cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
+          }
+          r++;
+        }
+        continue;
+      }
+      const row=ws.getRow(r);
+      row.getCell(1).value=it.id;
+      style(row.getCell(2),{value: it.type==='site' ? it.text+' (CVC / Port / PIV / Butterfly)' : it.text, alignment:{wrapText:true,vertical:'top'}});
+      if(it.type==='site'){
+        row.getCell(3).value='—';
+        for(let i=0;i<N;i++){
+          const cell=row.getCell(C0+i); const o=obsList[i];
+          if(o && sectionApplies(s,o) && o.site) cell.value=o.site;
+          cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
+          cell.dataValidation={type:'list',allowBlank:true,formulae:['"CVC,Port,PIV,Butterfly"']};
+        }
+      } else {
+        style(row.getCell(3),{value:{formula:pctF(`D${r}:${LC}${r}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'}});
+        for(let i=0;i<N;i++){
+          const cell=row.getCell(C0+i); const o=obsList[i];
+          if(o) cell.value = sectionApplies(s,o) ? ((o.answers||{})[it.id]||null) : 'N/A';
+          cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
+          cell.dataValidation={type:'list',allowBlank:true,formulae:['"Yes,No,N/O,N/A"']};
+        }
+      }
+      r++;
+    }
+    const secEnd=r-1;
+    cPctRanges.push(`C${secStart}:C${secEnd}`);
+    const nr=ws.getRow(r);
+    style(nr.getCell(2),{value:'Observation — if "No" selected, clarify:',font:{italic:true}});
+    nr.getCell(3).value='—';
+    for(let i=0;i<N;i++){
+      const cell=nr.getCell(C0+i); const o=obsList[i];
+      const v=o && (o.notes||{})[s.id];
+      if(v) cell.value=v;
+      cell.fill=fill(F.note); cell.border=border; cell.alignment={wrapText:true,vertical:'top'};
+    }
+    r++;
+    const pr=ws.getRow(r);
+    style(pr.getCell(2),{value:`Section ${s.id} points / possible`,font:{bold:true}});
+    style(pr.getCell(3),{value:{formula:ptsF(`D${secStart}:${LC}${secEnd}`)},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}});
+    for(let i=0;i<N;i++){ const L=colLetter(C0+i); style(pr.getCell(C0+i),{value:{formula:ptsF(`${L}${secStart}:${L}${secEnd}`)},fill:fill(F.auto),alignment:{horizontal:'center'}}); }
+    r++;
+    const pc=ws.getRow(r);
+    style(pc.getCell(2),{value:`Section ${s.id} score %`,font:{bold:true}});
+    style(pc.getCell(3),{value:{formula:pctF(`D${secStart}:${LC}${secEnd}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}});
+    for(let i=0;i<N;i++){ const L=colLetter(C0+i); style(pc.getCell(C0+i),{value:{formula:pctF(`${L}${secStart}:${L}${secEnd}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}}); }
+    scoreRows.push(r); sectionScoreRow[s.id]=r;
+    r++;
+  }
+  const lastItemRow=r-1;
+
+  const gr=ws.getRow(r);
+  gr.getCell(1).value='G'; gr.getCell(2).value='Observer Comments & Follow-Up  (not scored)';
+  for(let c=1;c<=CL;c++) style(gr.getCell(c),{font:{bold:true,size:12},fill:fill(F.sec)});
+  r++;
+  const ncRow=ws.getRow(r);
+  style(ncRow.getCell(2),{value:'Non-compliance observed (describe step, who, and what happened)',alignment:{wrapText:true}});
+  ncRow.getCell(3).value='—';
+  for(let i=0;i<N;i++){ const cell=ncRow.getCell(C0+i); const o=obsList[i]; if(o&&o.nonCompliance) cell.value=o.nonCompliance; cell.fill=fill(F.note); cell.border=border; cell.alignment={wrapText:true,vertical:'top'}; }
+  r++;
+  const fbRow=ws.getRow(r);
+  fbRow.getCell(2).value='Immediate feedback given to staff at point of care?';
+  fbRow.getCell(3).value='—';
+  for(let i=0;i<N;i++){ const cell=fbRow.getCell(C0+i); const o=obsList[i]; if(o&&o.feedback) cell.value=o.feedback; cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'}; cell.dataValidation={type:'list',allowBlank:true,formulae:['"Yes,No"']}; }
+  r+=2;
+
+  const orow=ws.getRow(r);
+  orow.getCell(1).value='★'; orow.getCell(2).value='OBSERVATION SCORE (calculated automatically from the answers)';
+  for(let c=1;c<=CL;c++) style(orow.getCell(c),{font:{bold:true,size:12,color:{argb:'FFFFFFFF'}},fill:fill(F.title)});
+  r++;
+  const targetRow=r+6;
+  const T=`$C$${targetRow}`;
+  const rng=L=>`${L}${firstItemRow}:${L}${lastItemRow}`;
+  const allRng=`D${firstItemRow}:${LC}${lastItemRow}`;
+  const overallPctRow=r+1;
+  const lines=[
+    ['Points / possible  (Yes / Yes + No)', L=>ptsF(rng(L)), ptsF(allRng), null],
+    ['SCORE %', L=>pctF(rng(L)), pctF(allRng), '0%'],
+    ['Result vs target', L=>`IF(${L}${overallPctRow}="","",IF(${L}${overallPctRow}>=${T},"Target met","Below target"))`, `IF(C${overallPctRow}="","",IF(C${overallPctRow}>=${T},"Target met","Below target"))`, null],
+    ['Items answered N/A or N/O (left out of the total)', L=>`IF(COUNTA(${L}${firstItemRow}:${L}${lastItemRow})=0,"",${cnt(rng(L),'N/A')}+${cnt(rng(L),'N/O')})`, `${cnt(allRng,'N/A')}+${cnt(allRng,'N/O')}`, null],
+    ['Items not yet answered', L=>`IF(COUNTA(${L}${firstItemRow}:${L}${lastItemRow})=0,"",${TOTAL_SCORED}-(${cnt(rng(L),'Yes')}+${cnt(rng(L),'No')}+${cnt(rng(L),'N/A')}+${cnt(rng(L),'N/O')}))`, null, null]
+  ];
+  for(const [label,f,cf,fmt] of lines){
+    const row=ws.getRow(r);
+    style(row.getCell(2),{value:label,font:{bold:true}});
+    if(cf) style(row.getCell(3),{value:{formula:cf},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true},numFmt:fmt||'General'});
+    for(let i=0;i<N;i++) style(row.getCell(C0+i),{value:{formula:f(colLetter(C0+i))},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true},numFmt:fmt||'General'});
+    r++;
+  }
+  r++;
+  const tr=ws.getRow(targetRow);
+  style(tr.getCell(2),{value:'Compliance target (edit if needed)',font:{bold:true}});
+  style(tr.getCell(3),{value:target,numFmt:'0%',fill:fill(F.input),font:{bold:true},border});
+  ws.mergeCells(`D${targetRow}:L${targetRow}`);
+  style(tr.getCell(4),{value:'Green = at or above target, red = below.',font:{italic:true,size:10}});
+  ws.mergeCells(`A${targetRow+2}:L${targetRow+2}`);
+  style(ws.getCell(`A${targetRow+2}`),{value:'Yellow = fill in · Blue = automatic · C9 (volume) and C11 (site) are recorded but not scored · Sections that do not apply to the draw type are filled as N/A · "ALL OBSERVATIONS" = every observation combined.',font:{italic:true,size:9},alignment:{wrapText:true}});
+  ws.getRow(targetRow+2).height=30;
+
+  const cf=(ref,rules)=>ws.addConditionalFormatting({ref,rules});
+  const fillDx=(bg,fg)=>({fill:{type:'pattern',pattern:'solid',bgColor:{argb:bg}},font:{color:{argb:fg}}});
+  cf(`D${firstItemRow}:${LC}${lastItemRow}`,[
+    {type:'cellIs',operator:'equal',formulae:['"Yes"'],style:fillDx('FFD4EDDA','FF155724'),priority:1},
+    {type:'cellIs',operator:'equal',formulae:['"No"'],style:fillDx('FFF8D7DA','FF842029'),priority:2},
+    {type:'cellIs',operator:'equal',formulae:['"N/O"'],style:fillDx('FFEDEDED','FF555555'),priority:3},
+    {type:'cellIs',operator:'equal',formulae:['"N/A"'],style:fillDx('FFEDEDED','FF555555'),priority:4}
+  ]);
+  const pctRule=(tl)=>[
+    {type:'expression',formulae:[`AND(ISNUMBER(${tl}),${tl}>=${T})`],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:5},
+    {type:'expression',formulae:[`AND(ISNUMBER(${tl}),${tl}<${T})`],style:fillDx('FFFFC7CE','FF9C0006'),priority:6}
+  ];
+  for(const rr of cPctRanges) cf(rr,pctRule(rr.split(':')[0]));
+  for(const sr of [...scoreRows, overallPctRow]) cf(`C${sr}:${LC}${sr}`,pctRule(`C${sr}`));
+  cf(`C${overallPctRow+1}:${LC}${overallPctRow+1}`,[
+    {type:'cellIs',operator:'equal',formulae:['"Target met"'],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:7},
+    {type:'cellIs',operator:'equal',formulae:['"Below target"'],style:fillDx('FFFFC7CE','FF9C0006'),priority:8}
+  ]);
+  ws.views=[{state:'frozen',xSplit:3,ySplit:4}];
+
+  const sm = wb.addWorksheet('Summary by Date');
+  sm.mergeCells('A1:N1');
+  style(sm.getCell('A1'),{value:'Score Summary by Observation (filled automatically from Audit Data)',font:{bold:true,size:14,color:{argb:'FFFFFFFF'}},fill:fill(F.title)});
+  sm.getRow(1).height=24;
+  const cols=['Obs','Date','Draw type','Cannulating nurse','Observer','Sec A %','Sec B %','Sec C %','Sec D %','Sec E %','Sec F %','Points / possible','Overall %','Result'];
+  const widths=[6,13,18,20,18,9,9,9,9,9,9,16,11,14];
+  cols.forEach((h,i)=>{ const c=sm.getRow(3).getCell(i+1); style(c,{value:h,font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center',wrapText:true}}); sm.getColumn(i+1).width=widths[i]; });
+  const AD="'Audit Data'!";
+  const link=(L,row)=>`IF(${AD}${L}${row}="","",${AD}${L}${row})`;
+  const allRowIdx=4;
+  const writeSumRow=(row,L,label)=>{
+    const R=sm.getRow(row);
+    R.getCell(1).value=label;
+    if(L==='C'){ R.getCell(2).value='All'; } else {
+      style(R.getCell(2),{value:{formula:link(L,detailRow['Date'])},numFmt:'dd-mmm-yyyy'});
+      R.getCell(3).value={formula:link(L,detailRow['Type of draw observed'])};
+      R.getCell(4).value={formula:link(L,detailRow['Cannulating nurse'])};
+      R.getCell(5).value={formula:link(L,detailRow['Observer / Auditor'])};
+    }
+    CHECKLIST.forEach((s,k)=> style(R.getCell(6+k),{value:{formula:`${AD}${L}${sectionScoreRow[s.id]}`},numFmt:'0%',alignment:{horizontal:'center'}}));
+    R.getCell(12).value={formula:`${AD}${L}${overallPctRow-1}`};
+    style(R.getCell(13),{value:{formula:`${AD}${L}${overallPctRow}`},numFmt:'0%',font:{bold:true},alignment:{horizontal:'center'}});
+    R.getCell(14).value={formula:`${AD}${L}${overallPctRow+1}`};
+    for(let c=1;c<=14;c++) R.getCell(c).border=border;
+  };
+  writeSumRow(allRowIdx,'C','All');
+  for(let c=1;c<=14;c++) sm.getRow(allRowIdx).getCell(c).fill=fill(F.sec);
+  for(let i=0;i<N;i++) writeSumRow(allRowIdx+1+i, colLetter(C0+i), i+1);
+  const smEnd=allRowIdx+N;
+  const T2=`'Audit Data'!${T}`;
+  sm.addConditionalFormatting({ref:`F4:K${smEnd}`,rules:pctRule('F4').map(x=>({...x,formulae:[x.formulae[0].replace(T,T2)]}))});
+  sm.addConditionalFormatting({ref:`M4:M${smEnd}`,rules:pctRule('M4').map(x=>({...x,formulae:[x.formulae[0].replace(T,T2)]}))});
+  sm.addConditionalFormatting({ref:`N4:N${smEnd}`,rules:[
+    {type:'cellIs',operator:'equal',formulae:['"Target met"'],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:1},
+    {type:'cellIs',operator:'equal',formulae:['"Below target"'],style:fillDx('FFFFC7CE','FF9C0006'),priority:2}
+  ]});
+  sm.views=[{state:'frozen',ySplit:3}];
+  return wb;
+}
+
+/* ===================== App state & persistence (artifact capability) ===================== */
+let OBS = [];           // all saved observations
+let DRAFT = null;        // current in-progress observation (new or being edited)
+let TARGET = 0.9;
+let artifactCap = null;
+let canWrite = true;
+let collapsedSections = {}; // UI-only: which section cards are collapsed (not persisted)
+
+function uid(){ return 'obs-' + Date.now() + '-' + Math.random().toString(36).slice(2,8); }
+function emptyDraft(){
+  return {
+    id: uid(), date: new Date().toISOString().slice(0,10), startTime:'', finishTime:'',
+    unit:'Emergency Department', location:'', observer:'', naSections:{},
+    trolleyPrep:'', cannulating:'', assisting:'', trolleyCleaned:'',
+    answers:{}, vol1:'', vol2:'', site:'', notes:{}, nonCompliance:'', feedback:'',
+    createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
+  };
+}
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  const [y,m,d]=iso.split('-'); const dt=new Date(Date.UTC(+y,+m-1,+d));
+  return dt.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+}
+function pctLabel(p){ return p===null||p===undefined ? '—' : Math.round(p*100)+'%'; }
+function pillClass(p){ if(p===null) return 'mid'; return p>=TARGET ? 'good' : (p>=0.6 ? 'mid' : 'bad'); }
+
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---- doc-rebuild helper for artifact.publish(): regenerate the whole page from state ---- */
+function serializeState(){
+  return { obs: OBS, target: TARGET };
+}
+function currentDocHTML(){
+  const styleEl = document.querySelector('style').outerHTML;
+  const titleEl = document.querySelector('title').outerHTML;
+  const metaEl = document.querySelector('meta[name="claude:viewport-fit-sides"]').outerHTML;
+  // Strip every previous seed-data tag (however many piled up) before appending one fresh copy.
+  const bodyInner = document.body.innerHTML.replace(/<script id="seed-data"[^>]*>[\s\S]*?<\/script>/g, '');
+  const closeTag = '<' + '/script>';
+  const safeJson = JSON.stringify(serializeState()).split('<' + '/script').join('<\\/script');
+  const dataScript = '<script id="seed-data" type="application/json">' + safeJson + closeTag;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${metaEl}${titleEl}${styleEl}</head><body>${bodyInner}${dataScript}</body></html>`;
+}
+const LOCAL_KEY = 'blood-audit-app-state-v1';
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(serializeState())); }catch(e){ /* storage unavailable; nothing else to do */ }
+}
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LOCAL_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+async function persist(){
+  // Standalone hosting (GitHub Pages, etc.): no Claude artifact backend, so save to this
+  // phone/browser's own storage instead. Each device keeps its own observations this way.
+  if(!artifactCap){ saveLocal(); return; }
+  if(!canWrite) return;
+  try{ await artifactCap.publish(currentDocHTML()); }
+  catch(e){ if(e && e.code==='conflict'){ /* another view saved; it will reload */ } else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; saveLocal(); } }
+}
+
+/* ===================== Rendering: New Observation screen ===================== */
+function renderNew(){
+  const el = document.getElementById('screen-new');
+  const d = DRAFT;
+  const scored = scoreObs(d);
+  const sectionsHTML = CHECKLIST.map(sec=>{
+    const applies = sectionApplies(sec, d);
+    const r = scored.sections[sec.id];
+    const itemsHTML = sec.items.map(it=>{
+      if(it.type==='volume'){
+        return `<div class="item"><div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
+          <div class="volume-row">
+            <div class="field"><label>Bottle 1 (mL)</label><input type="number" step="0.1" min="0" value="${d.vol1||''}" data-vol="1"></div>
+            <div class="field"><label>Bottle 2 (mL)</label><input type="number" step="0.1" min="0" value="${d.vol2||''}" data-vol="2"></div>
+          </div></div>`;
+      }
+      if(it.type==='site'){
+        return `<div class="item"><div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
+          <div class="chip-group" data-site-group>
+            ${SITES.map(s=>`<button type="button" class="chip ${d.site===s?'on':''}" data-site="${s}">${s}</button>`).join('')}
+          </div></div>`;
+      }
+      const cur = d.answers[it.id] || '';
+      return `<div class="item">
+        <div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
+        <div class="ans-group" data-item="${it.id}">
+          ${ANSWERS.map((a,ai)=>`<label class="ans-btn"><input type="radio" name="ans-${it.id}" value="${a}" ${cur===a?'checked':''}>${a}</label>`).join('')}
+        </div>
+        ${cur==='No' ? `<div class="note-flag"><input type="text" placeholder="Why? (goes in section notes)" data-itemnote="${it.id}" value="${(d.itemNotes&&d.itemNotes[it.id])||''}"></div>` : ''}
+      </div>`;
+    }).join('');
+    const collapsed = !!collapsedSections[sec.id];
+    return `<div class="section-head" data-collapsetoggle="${sec.id}"><h2><span class="chev ${collapsed?'collapsed':''}">▾</span>${sec.id}. ${sec.title}</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${applies ? `<span class="pct" style="background:${r.pct===null?'var(--na-bg)':r.pct>=TARGET?'var(--yes-bg)':'var(--no-bg)'};color:${r.pct===null?'var(--na)':r.pct>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(r.pct)}</span>` : ''}
+          ${TOGGLEABLE_SECTIONS.includes(sec.id) ? `<button type="button" class="na-toggle ${applies?'':'on'}" data-natoggle="${sec.id}">${applies ? 'Mark N/A' : 'N/A ✕'}</button>` : ''}
+        </div>
+      </div>
+      ${sec.sub && !collapsed?`<div class="section-sub">${sec.sub}</div>`:''}
+      <div class="card ${applies?'':'na'} ${collapsed?'collapsed-body':''}" data-section="${sec.id}">${itemsHTML}
+        <div class="sec-note"><label>Section ${sec.id} observation notes</label><textarea data-secnote="${sec.id}" placeholder="If any item is No, note what happened...">${d.notes[sec.id]||''}</textarea></div>
+      </div>`;
+  }).join('');
+  const anyOpen = CHECKLIST.some(s=>!collapsedSections[s.id]);
+  const drawSummary = `<div class="drawsummary" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span>Applies to this observation: <b>${drawLabel(d)}</b> — mark B, C or F N/A when it doesn't apply.</span>
+      <button class="linklike" id="collapseAllBtn" style="flex-shrink:0">${anyOpen?'Collapse all':'Expand all'}</button>
+    </div>`;
+
+  el.innerHTML = `
+    ${drawSummary}
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:12px;font-family:inherit">Observation Details</h3>
+      <div class="row2">
+        <div class="field"><label>Date</label><input type="date" id="f_date" value="${d.date}"></div>
+        <div class="field"><label>Unit / Area</label><input type="text" id="f_unit" value="${d.unit}" placeholder="e.g. Emergency Department"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Start time</label><input type="time" id="f_start" value="${d.startTime}"></div>
+        <div class="field"><label>Finish time</label><input type="time" id="f_finish" value="${d.finishTime}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Location</label><input type="text" id="f_location" value="${d.location}"></div>
+        <div class="field"><label>Observer / Auditor</label><input type="text" id="f_observer" value="${d.observer}"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:12px;font-family:inherit">Staff Observed</h3>
+      <div class="row2">
+        <div class="field"><label>Trolley prepared by</label><input type="text" id="f_trolleyPrep" value="${d.trolleyPrep}"></div>
+        <div class="field"><label>Cannulating nurse</label><input type="text" id="f_cannulating" value="${d.cannulating}"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Assisting nurse — VBG</label><input type="text" id="f_assisting" value="${d.assisting}"></div>
+        <div class="field"><label>Trolley cleaned by</label><input type="text" id="f_trolleyCleaned" value="${d.trolleyCleaned}"></div>
+      </div>
+      <div class="formula-note">For CBG, only "Cannulating nurse" applies — one nurse performs the whole procedure; the other three rows don't apply.</div>
+    </div>
+    ${sectionsHTML}
+    <div class="card">
+      <div class="field"><label>Any additional non-compliance (describe step, who, what happened)</label><textarea id="f_noncompliance">${d.nonCompliance}</textarea></div>
+      <div class="field"><label>Immediate feedback given to staff at point of care?</label>
+        <div class="chip-group">
+          <button type="button" class="chip ${d.feedback==='Yes'?'on':''}" data-feedback="Yes">Yes</button>
+          <button type="button" class="chip ${d.feedback==='No'?'on':''}" data-feedback="No">No</button>
+        </div>
+      </div>
+    </div>
+    <div class="save-bar"><button class="btn" id="saveBtn">Save Observation</button></div>
+  `;
+
+  el.querySelectorAll('[data-natoggle]').forEach(t=>t.onclick=(ev)=>{
+    ev.stopPropagation();
+    const id=t.dataset.natoggle;
+    d.naSections = d.naSections||{};
+    d.naSections[id] = !d.naSections[id];
+    renderNew();
+  });
+  el.querySelectorAll('[data-collapsetoggle]').forEach(h=>h.onclick=(ev)=>{
+    if(ev.target.closest('[data-natoggle]')) return;
+    const id=h.dataset.collapsetoggle;
+    collapsedSections[id] = !collapsedSections[id];
+    renderNew();
+  });
+  const collapseAllBtn = document.getElementById('collapseAllBtn');
+  if(collapseAllBtn) collapseAllBtn.onclick=()=>{
+    const anyOpen = CHECKLIST.some(s=>!collapsedSections[s.id]);
+    CHECKLIST.forEach(s=>{ collapsedSections[s.id] = anyOpen; });
+    renderNew();
+  };
+  el.querySelectorAll('[data-item]').forEach(group=>{
+    group.querySelectorAll('input[type=radio]').forEach(inp=>{
+      inp.addEventListener('click', ()=>{
+        const itemId=group.dataset.item;
+        if(d.answers[itemId] === inp.value){
+          // tapping the already-selected answer again clears it
+          inp.checked = false;
+          d.answers[itemId] = '';
+          renderNew();
+        }
+      });
+      inp.addEventListener('change', ()=>{
+        const itemId=group.dataset.item;
+        d.answers[itemId] = inp.value;
+        renderNew();
+      });
+    });
+  });
+  el.querySelectorAll('[data-itemnote]').forEach(inp=>inp.oninput=()=>{
+    d.itemNotes = d.itemNotes||{}; d.itemNotes[inp.dataset.itemnote]=inp.value;
+  });
+  el.querySelectorAll('[data-secnote]').forEach(ta=>ta.oninput=()=>{ d.notes[ta.dataset.secnote]=ta.value; });
+  el.querySelectorAll('[data-vol]').forEach(inp=>inp.oninput=()=>{ d['vol'+inp.dataset.vol]=inp.value; });
+  const siteGroup = el.querySelector('[data-site-group]');
+  if(siteGroup) siteGroup.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ d.site = d.site===c.dataset.site ? '' : c.dataset.site; renderNew(); });
+  const fmap = {f_date:'date',f_unit:'unit',f_start:'startTime',f_finish:'finishTime',f_location:'location',f_observer:'observer',f_trolleyPrep:'trolleyPrep',f_cannulating:'cannulating',f_assisting:'assisting',f_trolleyCleaned:'trolleyCleaned',f_noncompliance:'nonCompliance'};
+  Object.entries(fmap).forEach(([domId,key])=>{ const node=document.getElementById(domId); if(node) node.oninput=()=>{ d[key]=node.value; }; });
+  el.querySelectorAll('[data-feedback]').forEach(c=>c.onclick=()=>{ d.feedback = d.feedback===c.dataset.feedback ? '' : c.dataset.feedback; renderNew(); });
+
+  const saveBtn=document.getElementById('saveBtn');
+  if(saveBtn) saveBtn.onclick=async()=>{
+    d.updatedAt=new Date().toISOString();
+    for(const k in d.notes){ const s=CHECKLIST.find(x=>x.id===k); if(s && sectionApplies(s,d)){ const missingNo = s.items.some(it=>!it.type && d.answers[it.id]==='No' && !d.notes[k]); } }
+    const idx=OBS.findIndex(o=>o.id===d.id);
+    if(idx>=0) OBS[idx]=d; else OBS.push(d);
+    await persist();
+    toast('Saved');
+    DRAFT=emptyDraft();
+    document.getElementById('pageTitle').textContent='New Observation';
+    document.getElementById('newBtn').hidden=true;
+    renderNew();
+    setTab('history');
+  };
+}
+
+/* ===================== History screen ===================== */
+function renderHistory(){
+  const el = document.getElementById('screen-history');
+  const list = sortObs(OBS).reverse();
+  if(!list.length){
+    el.innerHTML = `<div class="empty"><h3>No observations yet</h3><p>Audits you save on the New tab will show up here, scored the same way as the paper sheet.</p></div>`;
+    return;
+  }
+  const overall = scoreOverall(OBS);
+  const secAvg = CHECKLIST.map(s=>{
+    const vals = OBS.map(o=>scoreObs(o).sections[s.id]).filter(r=>r.applicable && r.pct!==null);
+    const avg = vals.length ? vals.reduce((a,b)=>a+b.pct,0)/vals.length : null;
+    return {id:s.id, pct:avg};
+  });
+  el.innerHTML = `
+    <div class="statgrid" style="margin-bottom:14px">
+      <div class="stat"><div class="n">${list.length}</div><div class="l">Observations</div></div>
+      <div class="stat"><div class="n" style="color:${overall===null?'inherit':overall>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(overall)}</div><div class="l">Overall score</div></div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:8px;font-family:inherit">Average by section</h3>
+      ${secAvg.map(s=>`<div class="secbar-row"><div class="lab">${s.id}</div><div class="track"><div style="width:${s.pct===null?0:Math.round(s.pct*100)}%;background:${s.pct===null?'var(--na)':s.pct>=TARGET?'var(--yes)':'var(--no)'}"></div></div><div class="val">${pctLabel(s.pct)}</div></div>`).join('')}
+    </div>
+    <div class="card">
+      ${list.map(o=>{
+        const sc=scoreObs(o);
+        const types=drawLabel(o);
+        return `<div class="obs-row" data-obsid="${o.id}">
+          <div class="meta"><div class="d">${fmtDate(o.date)}</div><div class="s">${types||'—'} · ${o.cannulating||o.observer||'—'}</div></div>
+          <span class="pill ${pillClass(sc.pct)}">${pctLabel(sc.pct)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  el.querySelectorAll('.obs-row').forEach(row=>row.onclick=()=>{
+    const o = OBS.find(x=>x.id===row.dataset.obsid);
+    if(!o) return;
+    DRAFT = o;
+    document.getElementById('pageTitle').textContent='Edit Observation';
+    document.getElementById('newBtn').hidden=false;
+    renderNew();
+    setTab('new');
+  });
+}
+function scoreOverall(list){
+  let yes=0,no=0;
+  for(const o of list){ const s=scoreObs(o); yes+=s.yes; no+=s.no; }
+  return (yes+no) ? yes/(yes+no) : null;
+}
+
+/* ===================== Insights screen ===================== */
+function itemLookup(id){ for(const s of CHECKLIST){ for(const it of s.items){ if(it.id===id) return it; } } return null; }
+function renderInsights(){
+  const el = document.getElementById('screen-insights');
+  if(!OBS.length){
+    el.innerHTML = `<div class="empty"><h3>Nothing to show yet</h3><p>Save a few observations and this tab will chart the most common misses and compliance by nurse.</p></div>`;
+    return;
+  }
+  // Most common non-compliance: count of "No" per item across all applicable observations
+  const noCounts = {};
+  for(const o of OBS){
+    for(const s of CHECKLIST){
+      if(!sectionApplies(s,o)) continue;
+      for(const it of s.items){
+        if(it.type) continue;
+        if((o.answers||{})[it.id]==='No') noCounts[it.id]=(noCounts[it.id]||0)+1;
+      }
+    }
+  }
+  const topMisses = Object.entries(noCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxMiss = topMisses.length ? topMisses[0][1] : 1;
+
+  // Compliance % per primary (cannulating) nurse
+  const byNurse = {};
+  for(const o of OBS){
+    const name = (o.cannulating || '').trim() || 'Unassigned';
+    const sc = scoreObs(o);
+    if(!byNurse[name]) byNurse[name] = {yes:0,no:0,n:0};
+    byNurse[name].yes += sc.yes; byNurse[name].no += sc.no; byNurse[name].n += 1;
+  }
+  const nurseRows = Object.entries(byNurse)
+    .map(([name,v])=>({name, n:v.n, pct:(v.yes+v.no)?v.yes/(v.yes+v.no):null}))
+    .sort((a,b)=> (b.pct??-1)-(a.pct??-1));
+
+  // Compliance by section, worst-first (reuse history calc logic but sorted)
+  const bySection = CHECKLIST.map(s=>{
+    const vals = OBS.map(o=>scoreObs(o).sections[s.id]).filter(r=>r.applicable && r.pct!==null);
+    const avg = vals.length ? vals.reduce((a,b)=>a+b.pct,0)/vals.length : null;
+    return {id:s.id, title:s.title, pct:avg};
+  }).filter(s=>s.pct!==null).sort((a,b)=>a.pct-b.pct);
+
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Most common non-compliance</h3>
+      <p class="formula-note" style="margin-bottom:10px">Count of "No" answers per checklist item, across all ${OBS.length} observations.</p>
+      ${topMisses.length ? topMisses.map(([id,n])=>{
+        const it=itemLookup(id);
+        return `<div class="hbar-row"><div class="lab"><span class="id">${id}</span>${it?it.text:''}</div><div class="track"><div style="width:${Math.round(n/maxMiss*100)}%"></div></div><div class="val">${n}</div></div>`;
+      }).join('') : '<p class="formula-note">No misses recorded — nice work.</p>'}
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Compliance by nurse</h3>
+      <p class="formula-note" style="margin-bottom:10px">Based on the cannulating nurse on each observation.</p>
+      ${nurseRows.map(n=>`<div class="nursecard">
+        <div><div class="who">${n.name}</div><div class="cnt">${n.n} observation${n.n===1?'':'s'}</div></div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="segwrap"><div style="width:${n.pct===null?0:Math.round(n.pct*100)}%;background:${n.pct===null?'var(--na)':n.pct>=TARGET?'var(--yes)':n.pct>=0.6?'var(--warn-ink)':'var(--no)'}"></div></div>
+          <span class="pill ${pillClass(n.pct)}">${pctLabel(n.pct)}</span>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Weakest sections</h3>
+      <p class="formula-note" style="margin-bottom:10px">Average score per section, lowest first.</p>
+      ${bySection.map(s=>`<div class="secbar-row"><div class="lab">${s.id}</div><div class="track"><div style="width:${Math.round(s.pct*100)}%;background:${s.pct>=TARGET?'var(--accent)':'var(--no)'}"></div></div><div class="val">${pctLabel(s.pct)}</div></div>`).join('')}
+    </div>
+  `;
+}
+
+/* ===================== Export screen ===================== */
+function renderExport(){
+  const el = document.getElementById('screen-export');
+  el.innerHTML = `
+    <div class="card">
+      <div class="field"><label>Compliance target</label>
+        <select id="targetPct">
+          ${[0.8,0.85,0.9,0.95,1].map(v=>`<option value="${v}" ${Math.abs(v-TARGET)<0.001?'selected':''}>${Math.round(v*100)}%</option>`).join('')}
+        </select>
+      </div>
+      <div class="formula-note">Used for the "Target met / Below target" column in the exported sheet.</div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:8px;font-family:inherit">Download as Excel</h3>
+      <p class="formula-note" style="margin-bottom:14px">Builds the same layout as the paper score sheet — Audit Data + Summary by Date — with ${OBS.length} observation${OBS.length===1?'':'s'}, formulas and conditional colors included.</p>
+      <button class="btn" id="exportBtn">${OBS.length ? 'Download .xlsx' : 'No observations to export yet'}</button>
+    </div>
+  `;
+  document.getElementById('targetPct').onchange=(e)=>{ TARGET=parseFloat(e.target.value); persist(); };
+  const btn=document.getElementById('exportBtn');
+  if(!OBS.length){ btn.disabled=true; return; }
+  btn.onclick=async()=>{
+    btn.disabled=true; btn.textContent='Loading Excel engine...';
+    try{
+      await loadExcelJS();
+      btn.textContent='Building...';
+      const wb = buildWorkbook(OBS, TARGET);
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const name = `Blood_Collection_Audit_Score_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`;
+      if(typeof claude !== 'undefined' && claude && claude.use){
+        const dl = await claude.use('downloads');
+        if(dl){ await dl.save({filename:name, data:blob}); toast('Downloaded'); }
+        else { toast('Downloads unavailable in this view'); }
+      } else {
+        // Standalone hosting: trigger a normal browser download.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click();
+        a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
+        toast('Downloaded');
+      }
+    }catch(e){ console.error(e); toast('Could not build the file'); }
+    btn.disabled=false; btn.textContent='Download .xlsx';
+  };
+}
+
+/* ===================== Tabs ===================== */
+function setTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id==='screen-'+name));
+  if(name==='new'){ document.getElementById('pageTitle').textContent = DRAFT && OBS.find(o=>o.id===DRAFT.id) ? 'Edit Observation' : 'New Observation'; renderNew(); }
+  if(name==='history') renderHistory();
+  if(name==='insights') renderInsights();
+  if(name==='export') renderExport();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setTab(t.dataset.tab));
+document.getElementById('newBtn').onclick=()=>{
+  DRAFT=emptyDraft();
+  document.getElementById('pageTitle').textContent='New Observation';
+  document.getElementById('newBtn').hidden=true;
+  renderNew();
+};
+
+/* ===================== Boot ===================== */
+/* The two observations you already recorded on paper (7 Oct), carried over so nothing
+   you entered is lost. This only seeds the very first load — once the page has its own
+   saved state (the seed-data script tag below), that state wins and this is ignored. */
+const INITIAL_OBS = [
+  {
+    id:'obs-2026-10-07-1', date:'2026-10-07', startTime:'', finishTime:'',
+    unit:'Emergency Department', location:'', observer:'', naSections:{C:true,F:true},
+    trolleyPrep:'Sharon', cannulating:'Hossam', assisting:'Sharon', trolleyCleaned:'Hossam',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'Yes',A7:'Yes',A8:'Yes',
+      B1:'Yes',B2:'Yes',B3:'Yes',B4:'Yes',B5:'Yes',B6:'Yes',
+      D1:'No',D2:'No',D3:'Yes',D4:'Yes',D5:'Yes',D6:'N/A',D7:'Yes',D8:'Yes',
+      E1:'Yes',E2:'Yes'},
+    vol1:'', vol2:'', site:'',
+    notes:{D:'Wristband printer broken, so label printed outside', E:'not carried'},
+    nonCompliance:'', feedback:'Yes',
+    createdAt:'2026-10-07T00:00:01Z', updatedAt:'2026-10-19T00:00:00Z', imported:true
+  },
+  {
+    id:'obs-2026-10-07-2', date:'2026-10-07', startTime:'', finishTime:'',
+    unit:'Emergency Department', location:'', observer:'', naSections:{C:true,F:true},
+    trolleyPrep:'Mercy', cannulating:'Irfan', assisting:'Irfan', trolleyCleaned:'Irfan',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'Yes',A7:'Yes',A8:'Yes',
+      B1:'Yes',B2:'No',B3:'No',B4:'Yes',B5:'Yes',B6:'Yes',
+      D1:'Yes',D2:'Yes',D3:'Yes',D4:'Yes',D5:'Yes',D6:'Yes',D7:'Yes',D8:'Yes',
+      E1:'Yes',E2:'Yes'},
+    vol1:'', vol2:'', site:'',
+    notes:{B:'Nurse name not mentioned though procedure well explained. Only 1 identifier used'},
+    nonCompliance:'', feedback:'Yes',
+    createdAt:'2026-10-07T00:00:02Z', updatedAt:'2026-10-19T00:00:00Z', imported:true
+  }
+];
+function bootFromState(state){
+  OBS = (state && state.obs) || INITIAL_OBS.slice();
+  TARGET = (state && typeof state.target==='number') ? state.target : 0.9;
+  DRAFT = emptyDraft();
+  setTab('new');
+}
+function readSeed(){
+  // Only the very first published copy has zero seed tags; from then on there is always
+  // exactly one (duplicates are stripped on save). Treat "tag present but unparsable" as
+  // a one-off read problem, never as a reason to auto-save again — that was the loop bug.
+  const nodes = document.querySelectorAll('#seed-data');
+  if(!nodes.length) return { hadTag:false, state:null };
+  try{ return { hadTag:true, state: JSON.parse(nodes[0].textContent) }; }
+  catch(e){ return { hadTag:true, state:null }; }
+}
+(async function init(){
+  if(typeof claude === 'undefined' || !claude || !claude.use){
+    // Standalone hosting: no Claude runtime present. Load from this browser's own
+    // storage if we've saved here before; otherwise start from the seeded observations.
+    const saved = loadLocal();
+    bootFromState(saved || { obs: INITIAL_OBS.slice(), target: 0.9 });
+    if(!saved) saveLocal();
+    return;
+  }
+  const seed = readSeed();
+  bootFromState(seed.state);
+  try{
+    artifactCap = await claude.use('artifact');
+    if(!seed.hadTag) await persist(); // true first-ever load: write the seeded observations so they stick
+  }catch(e){ artifactCap = null; }
+})();
+window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(()=>({}));
+</script>
