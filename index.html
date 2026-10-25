@@ -868,40 +868,91 @@ function computeMonthly(list){
       pct: (yes+no) ? yes/(yes+no) : null, sections };
   });
 }
-/* Single-series line chart (no legend needed — the title names the one series).
-   Y-domain zooms to where the data actually sits so month-to-month movement
-   stays readable, while always including the target line for context. */
+/* Bar chart of overall score per month — renders immediately with just one
+   month's worth of data (a single bar), unlike a line which needs 2+ points.
+   Once 2+ months exist, a thin connecting line is drawn across the bar tops
+   so the same chart doubles as the progression view as more data comes in. */
 function renderMonthlyChart(rows){
-  const vals = rows.map(r=>r.pct).filter(v=>v!==null);
-  if(!vals.length) return '';
-  const W=600,H=190,padL=38,padR=14,padT=18,padB=26;
-  let yMin = Math.min(TARGET-0.1, ...vals);
-  yMin = Math.max(0, Math.floor(yMin*20)/20);
-  const yMax = 1;
-  const n = rows.length;
-  const x = i => n<=1 ? (padL+W-padR)/2 : padL + i*((W-padL-padR)/(n-1));
-  const y = v => padT + (1-(v-yMin)/(yMax-yMin||1))*(H-padT-padB);
-  let started=false;
-  const pathD = rows.map((r,i)=>{
-    if(r.pct===null) return '';
-    const seg = `${started?'L':'M'}${x(i).toFixed(1)},${y(r.pct).toFixed(1)}`;
-    started=true; return seg;
-  }).filter(Boolean).join(' ');
-  const gridVals = [yMin, (yMin+yMax)/2, yMax];
-  const gridlines = gridVals.map(v=>`<line x1="${padL}" x2="${W-padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--border)" stroke-width="1"/><text x="${padL-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--ink-dim)">${Math.round(v*100)}%</text>`).join('');
-  const targetY = y(Math.min(Math.max(TARGET,yMin),yMax)).toFixed(1);
-  const points = rows.map((r,i)=> r.pct===null?'':
-    `<circle cx="${x(i).toFixed(1)}" cy="${y(r.pct).toFixed(1)}" r="3.5" fill="var(--accent)"><title>${r.label}: ${pctLabel(r.pct)} (${r.n} observation${r.n===1?'':'s'})</title></circle>
-     <text x="${x(i).toFixed(1)}" y="${(y(r.pct)-8).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink)">${pctLabel(r.pct)}</text>`
-  ).join('');
-  const labels = rows.map((r,i)=>`<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--ink-dim)">${r.shortLabel}</text>`).join('');
+  const plotRows = rows.filter(r=>r.pct!==null);
+  if(!plotRows.length) return '';
+  const W=600,H=200,padL=38,padR=14,padT=22,padB=34;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const n = plotRows.length;
+  const gap = n>1 ? 14 : 0;
+  const barW = Math.min(64, (innerW - gap*(n-1))/n);
+  const rowStartX = padL + Math.max(0, (innerW - (n*barW + gap*(n-1)))/2);
+  const xCenter = i => rowStartX + i*(barW+gap) + barW/2;
+  const yOf = v => padT + (1-v)*innerH;
+  const baseY = padT+innerH;
+  const targetY = yOf(Math.min(Math.max(TARGET,0),1));
+  const bars = plotRows.map((r,i)=>{
+    const bx = xCenter(i)-barW/2, by = yOf(r.pct), bh = baseY-by;
+    const color = r.pct>=TARGET ? 'var(--yes)' : 'var(--no)';
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh,1).toFixed(1)}" rx="4" fill="${color}"><title>${r.label}: ${pctLabel(r.pct)} (${r.n} observation${r.n===1?'':'s'})</title></rect>
+     <text x="${xCenter(i).toFixed(1)}" y="${(by-7).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--ink)">${pctLabel(r.pct)}</text>`;
+  }).join('');
+  const trendLine = n>=2 ? `<polyline points="${plotRows.map((r,i)=>`${xCenter(i).toFixed(1)},${(yOf(r.pct)-13).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>` : '';
+  const labels = plotRows.map((r,i)=>`<text x="${xCenter(i).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="9" fill="var(--ink-dim)">${r.shortLabel}</text>`).join('');
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Overall compliance score by month, target ${pctLabel(TARGET)}">
-    ${gridlines}
-    <line x1="${padL}" x2="${W-padR}" y1="${targetY}" y2="${targetY}" stroke="var(--na)" stroke-width="1" stroke-dasharray="4,3"/>
-    <path d="${pathD}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    ${points}
+    <line x1="${padL}" x2="${W-padR}" y1="${baseY}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>
+    <line x1="${padL}" x2="${W-padR}" y1="${targetY.toFixed(1)}" y2="${targetY.toFixed(1)}" stroke="var(--na)" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="${padL-6}" y="${(targetY+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--ink-dim)">${pctLabel(TARGET)}</text>
+    ${trendLine}
+    ${bars}
     ${labels}
   </svg>`;
+}
+/* ---- Answer breakdown donut: Yes/No/N/A/N/O across every applicable item in
+   every saved observation. Renders the moment there's one observation — no
+   waiting on history to build up. Reuses the same status colors as the rest
+   of the app (yes=green, no=red, n/a=gray, n/o=amber) for consistency. ---- */
+function aggregateAnswers(list){
+  let yes=0,no=0,na=0,nobs=0;
+  for(const o of list){
+    for(const s of CHECKLIST){
+      const app = sectionApplies(s,o);
+      for(const it of s.items){
+        if(it.type) continue;
+        const a = app ? ((o.answers||{})[it.id]||'') : 'N/A';
+        if(a==='Yes') yes++; else if(a==='No') no++; else if(a==='N/O') nobs++; else if(a==='N/A') na++;
+      }
+    }
+  }
+  return {yes,no,na,nobs};
+}
+function renderAnswerDonut(agg){
+  const segments = [
+    {label:'Yes', value:agg.yes, color:'var(--yes)'},
+    {label:'No', value:agg.no, color:'var(--no)'},
+    {label:'N/A', value:agg.na, color:'var(--na)'},
+    {label:'N/O', value:agg.nobs, color:'var(--warn-ink)'}
+  ];
+  const total = segments.reduce((a,s)=>a+s.value,0);
+  if(!total) return '<p class="formula-note">No answered items yet.</p>';
+  const r=62, cx=84, cy=84, sw=24, C=2*Math.PI*r;
+  let acc=0;
+  const arcs = segments.filter(s=>s.value>0).map(s=>{
+    const frac = s.value/total;
+    const len = frac*C;
+    const rotate = -90 + (acc/total)*360;
+    acc += s.value;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" transform="rotate(${rotate.toFixed(2)} ${cx} ${cy})"><title>${s.label}: ${s.value} (${Math.round(frac*100)}%)</title></circle>`;
+  }).join('');
+  const yesFrac = Math.round((agg.yes/total)*100);
+  return `<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+    <svg viewBox="0 0 168 168" style="width:140px;height:140px;flex-shrink:0" role="img" aria-label="Breakdown of all answers: Yes, No, N/A, N/O">
+      ${arcs}
+      <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="24" font-weight="800" fill="var(--ink)">${yesFrac}%</text>
+      <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">Yes</text>
+    </svg>
+    <div style="flex:1;min-width:130px">
+      ${segments.filter(s=>s.value>0).map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px">
+        <span style="width:10px;height:10px;border-radius:3px;background:${s.color};flex-shrink:0"></span>
+        <span style="flex:1;color:var(--ink)">${s.label}</span>
+        <span style="font-weight:700;color:var(--ink-dim)">${s.value} (${Math.round(s.value/total*100)}%)</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
 }
 function renderMonthlyTable(rows){
   return `<div class="table-wrap"><table class="mtable">
@@ -925,6 +976,7 @@ function renderInsights(){
     return;
   }
   const monthly = computeMonthly(OBS);
+  const answerAgg = aggregateAnswers(OBS);
   // Most common non-compliance: count of "No" per item across all applicable observations
   const noCounts = {};
   for(const o of OBS){
@@ -961,9 +1013,14 @@ function renderInsights(){
   el.innerHTML = `
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Monthly progress</h3>
-      <p class="formula-note" style="margin-bottom:10px">Overall score by month (Yes ÷ Yes+No across all that month's observations), dashed line = ${pctLabel(TARGET)} target.</p>
-      ${monthly.length>=2 ? renderMonthlyChart(monthly) : '<p class="formula-note" style="margin-bottom:10px">Save observations across at least two different months to see a trend line — the table below still breaks down what you have.</p>'}
+      <p class="formula-note" style="margin-bottom:10px">Overall score by month (Yes ÷ Yes+No across all that month's observations), dashed line = ${pctLabel(TARGET)} target${monthly.length>=2 ? '. Faint line across the bars tracks the trend as more months come in.' : ''}</p>
+      ${renderMonthlyChart(monthly)}
       ${renderMonthlyTable(monthly)}
+    </div>
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Answer breakdown</h3>
+      <p class="formula-note" style="margin-bottom:10px">Every checklist item answered across all ${OBS.length} observation${OBS.length===1?'':'s'}.</p>
+      ${renderAnswerDonut(answerAgg)}
     </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Most common non-compliance</h3>
@@ -1072,7 +1129,7 @@ const INITIAL_OBS = [
     unit:'Emergency Department', location:'', observer:'', naSections:{C:true,F:true},
     trolleyPrep:'Mercy', cannulating:'Irfan', assisting:'Irfan', trolleyCleaned:'Irfan',
     answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'Yes',A7:'Yes',A8:'Yes',
-      B1:'Yes',B2:'No',B3:'No',B4:'Yes',B5:'Yes',B6:'Yes',
+      B1:'Yes',B2:'No',B3:'Yes',B4:'No',B5:'Yes',B6:'Yes',
       D1:'Yes',D2:'Yes',D3:'Yes',D4:'Yes',D5:'Yes',D6:'Yes',D7:'Yes',D8:'Yes',
       E1:'Yes',E2:'Yes'},
     vol1:'', vol2:'', site:'',
