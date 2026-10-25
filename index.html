@@ -140,6 +140,12 @@ main{flex:1; padding-bottom:92px; min-width:0}
 select#targetPct{width:auto; display:inline-block; padding:6px 8px}
 .linklike{color:var(--accent); font-weight:600; font-size:13.5px; background:none; border:none; padding:0; cursor:pointer}
 .formula-note{font-size:12px; color:var(--ink-dim); line-height:1.5; margin-top:4px}
+.table-wrap{overflow-x:auto; margin-top:4px; -webkit-overflow-scrolling:touch}
+.mtable{width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums}
+.mtable th,.mtable td{padding:7px 9px; text-align:center; white-space:nowrap; border-bottom:1px solid var(--border)}
+.mtable th{color:var(--ink-dim); font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em}
+.mtable td:first-child,.mtable th:first-child{text-align:left}
+.mtable tbody tr:last-child td{border-bottom:none}
 .hbar-row{display:flex; align-items:center; gap:10px; padding:7px 0}
 .hbar-row .lab{width:150px; flex-shrink:0; font-size:12.5px; line-height:1.3}
 .hbar-row .lab .id{font-weight:700; color:var(--accent); margin-right:4px}
@@ -613,21 +619,10 @@ function currentDocHTML(){
   const dataScript = '<script id="seed-data" type="application/json">' + safeJson + closeTag;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${metaEl}${titleEl}${styleEl}</head><body>${bodyInner}${dataScript}</body></html>`;
 }
-const LOCAL_KEY = 'blood-audit-app-state-v1';
-function saveLocal(){
-  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(serializeState())); }catch(e){ /* storage unavailable; nothing else to do */ }
-}
-function loadLocal(){
-  try{ const raw = localStorage.getItem(LOCAL_KEY); return raw ? JSON.parse(raw) : null; }
-  catch(e){ return null; }
-}
 async function persist(){
-  // Standalone hosting (GitHub Pages, etc.): no Claude artifact backend, so save to this
-  // phone/browser's own storage instead. Each device keeps its own observations this way.
-  if(!artifactCap){ saveLocal(); return; }
-  if(!canWrite) return;
+  if(!artifactCap || !canWrite) return;
   try{ await artifactCap.publish(currentDocHTML()); }
-  catch(e){ if(e && e.code==='conflict'){ /* another view saved; it will reload */ } else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; saveLocal(); } }
+  catch(e){ if(e && e.code==='conflict'){ /* another view saved; it will reload */ } else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; } }
 }
 
 /* ===================== Rendering: New Observation screen ===================== */
@@ -837,12 +832,99 @@ function scoreOverall(list){
 
 /* ===================== Insights screen ===================== */
 function itemLookup(id){ for(const s of CHECKLIST){ for(const it of s.items){ if(it.id===id) return it; } } return null; }
+
+/* ---- Monthly progress: group observations by calendar month, score each month
+   the same way as the overall score (Yes / (Yes+No), weighted by item count —
+   not a plain average of per-observation percentages). ---- */
+function monthKey(o){ return (o.date||'').slice(0,7) || 'unknown'; }
+function monthShortLabel(key){
+  if(key==='unknown') return '—';
+  const [y,m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleDateString(undefined,{month:'short',year:'2-digit'});
+}
+function monthFullLabel(key){
+  if(key==='unknown') return 'Unknown month';
+  const [y,m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+}
+function computeMonthly(list){
+  const groups = {};
+  for(const o of list){ const k=monthKey(o); (groups[k]=groups[k]||[]).push(o); }
+  return Object.keys(groups).sort().map(k=>{
+    const obsIn = groups[k];
+    let yes=0,no=0;
+    const secTot = {}; CHECKLIST.forEach(s=>secTot[s.id]={yes:0,no:0});
+    for(const o of obsIn){
+      const sc = scoreObs(o);
+      yes += sc.yes; no += sc.no;
+      for(const s of CHECKLIST){
+        const r = sc.sections[s.id];
+        if(r.applicable){ secTot[s.id].yes += r.yes; secTot[s.id].no += r.no; }
+      }
+    }
+    const sections = {};
+    CHECKLIST.forEach(s=>{ const t=secTot[s.id]; sections[s.id] = (t.yes+t.no) ? t.yes/(t.yes+t.no) : null; });
+    return { key:k, label: monthFullLabel(k), shortLabel: monthShortLabel(k), n: obsIn.length,
+      pct: (yes+no) ? yes/(yes+no) : null, sections };
+  });
+}
+/* Single-series line chart (no legend needed — the title names the one series).
+   Y-domain zooms to where the data actually sits so month-to-month movement
+   stays readable, while always including the target line for context. */
+function renderMonthlyChart(rows){
+  const vals = rows.map(r=>r.pct).filter(v=>v!==null);
+  if(!vals.length) return '';
+  const W=600,H=190,padL=38,padR=14,padT=18,padB=26;
+  let yMin = Math.min(TARGET-0.1, ...vals);
+  yMin = Math.max(0, Math.floor(yMin*20)/20);
+  const yMax = 1;
+  const n = rows.length;
+  const x = i => n<=1 ? (padL+W-padR)/2 : padL + i*((W-padL-padR)/(n-1));
+  const y = v => padT + (1-(v-yMin)/(yMax-yMin||1))*(H-padT-padB);
+  let started=false;
+  const pathD = rows.map((r,i)=>{
+    if(r.pct===null) return '';
+    const seg = `${started?'L':'M'}${x(i).toFixed(1)},${y(r.pct).toFixed(1)}`;
+    started=true; return seg;
+  }).filter(Boolean).join(' ');
+  const gridVals = [yMin, (yMin+yMax)/2, yMax];
+  const gridlines = gridVals.map(v=>`<line x1="${padL}" x2="${W-padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--border)" stroke-width="1"/><text x="${padL-6}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--ink-dim)">${Math.round(v*100)}%</text>`).join('');
+  const targetY = y(Math.min(Math.max(TARGET,yMin),yMax)).toFixed(1);
+  const points = rows.map((r,i)=> r.pct===null?'':
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(r.pct).toFixed(1)}" r="3.5" fill="var(--accent)"><title>${r.label}: ${pctLabel(r.pct)} (${r.n} observation${r.n===1?'':'s'})</title></circle>
+     <text x="${x(i).toFixed(1)}" y="${(y(r.pct)-8).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="var(--ink)">${pctLabel(r.pct)}</text>`
+  ).join('');
+  const labels = rows.map((r,i)=>`<text x="${x(i).toFixed(1)}" y="${H-8}" text-anchor="middle" font-size="9" fill="var(--ink-dim)">${r.shortLabel}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Overall compliance score by month, target ${pctLabel(TARGET)}">
+    ${gridlines}
+    <line x1="${padL}" x2="${W-padR}" y1="${targetY}" y2="${targetY}" stroke="var(--na)" stroke-width="1" stroke-dasharray="4,3"/>
+    <path d="${pathD}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    ${points}
+    ${labels}
+  </svg>`;
+}
+function renderMonthlyTable(rows){
+  return `<div class="table-wrap"><table class="mtable">
+    <thead><tr><th>Month</th><th>Obs</th>${CHECKLIST.map(s=>`<th>${s.id}</th>`).join('')}<th>Overall</th><th>vs Target</th></tr></thead>
+    <tbody>${rows.map(r=>{
+      const met = r.pct===null ? null : r.pct>=TARGET;
+      return `<tr>
+        <td>${r.shortLabel}</td>
+        <td>${r.n}</td>
+        ${CHECKLIST.map(s=>`<td style="color:${r.sections[s.id]===null?'var(--ink-dim)':r.sections[s.id]>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(r.sections[s.id])}</td>`).join('')}
+        <td style="font-weight:700;color:${r.pct===null?'var(--ink-dim)':r.pct>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(r.pct)}</td>
+        <td><span class="pill ${met===null?'mid':met?'good':'bad'}">${met===null?'—':met?'Met':'Below'}</span></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
 function renderInsights(){
   const el = document.getElementById('screen-insights');
   if(!OBS.length){
     el.innerHTML = `<div class="empty"><h3>Nothing to show yet</h3><p>Save a few observations and this tab will chart the most common misses and compliance by nurse.</p></div>`;
     return;
   }
+  const monthly = computeMonthly(OBS);
   // Most common non-compliance: count of "No" per item across all applicable observations
   const noCounts = {};
   for(const o of OBS){
@@ -877,6 +959,12 @@ function renderInsights(){
   }).filter(s=>s.pct!==null).sort((a,b)=>a.pct-b.pct);
 
   el.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Monthly progress</h3>
+      <p class="formula-note" style="margin-bottom:10px">Overall score by month (Yes ÷ Yes+No across all that month's observations), dashed line = ${pctLabel(TARGET)} target.</p>
+      ${monthly.length>=2 ? renderMonthlyChart(monthly) : '<p class="formula-note" style="margin-bottom:10px">Save observations across at least two different months to see a trend line — the table below still breaks down what you have.</p>'}
+      ${renderMonthlyTable(monthly)}
+    </div>
     <div class="card">
       <h3 style="font-size:15px;margin-bottom:4px;font-family:inherit">Most common non-compliance</h3>
       <p class="formula-note" style="margin-bottom:10px">Count of "No" answers per checklist item, across all ${OBS.length} observations.</p>
@@ -933,19 +1021,12 @@ function renderExport(){
       const wb = buildWorkbook(OBS, TARGET);
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-      const name = `Blood_Collection_Audit_Score_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`;
-      if(typeof claude !== 'undefined' && claude && claude.use){
-        const dl = await claude.use('downloads');
-        if(dl){ await dl.save({filename:name, data:blob}); toast('Downloaded'); }
-        else { toast('Downloads unavailable in this view'); }
-      } else {
-        // Standalone hosting: trigger a normal browser download.
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name; document.body.appendChild(a); a.click();
-        a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      const dl = await claude.use('downloads');
+      if(dl){
+        const name = `Blood_Collection_Audit_Score_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`;
+        await dl.save({filename:name, data:blob});
         toast('Downloaded');
-      }
+      } else { toast('Downloads unavailable in this view'); }
     }catch(e){ console.error(e); toast('Could not build the file'); }
     btn.disabled=false; btn.textContent='Download .xlsx';
   };
@@ -1016,14 +1097,6 @@ function readSeed(){
   catch(e){ return { hadTag:true, state:null }; }
 }
 (async function init(){
-  if(typeof claude === 'undefined' || !claude || !claude.use){
-    // Standalone hosting: no Claude runtime present. Load from this browser's own
-    // storage if we've saved here before; otherwise start from the seeded observations.
-    const saved = loadLocal();
-    bootFromState(saved || { obs: INITIAL_OBS.slice(), target: 0.9 });
-    if(!saved) saveLocal();
-    return;
-  }
   const seed = readSeed();
   bootFromState(seed.state);
   try{
