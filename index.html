@@ -361,6 +361,7 @@ function buildWorkbook(obsInput, target){
     ['Unit / Area', o=>o.unit||null],
     ['Location', o=>o.location||null],
     ['Observer / Auditor', o=>o.observer||null],
+    ['Patient MRN', o=>o.mrn||null],
     ['Type of draw observed', o=>drawLabel(o)==='—'?null:drawLabel(o)],
     ['Trolley prepared by', o=>o.trolleyPrep||null],
     ['Cannulating nurse', o=>o.cannulating||null],
@@ -584,7 +585,7 @@ function uid(){ return 'obs-' + Date.now() + '-' + Math.random().toString(36).sl
 function emptyDraft(){
   return {
     id: uid(), date: new Date().toISOString().slice(0,10), startTime:'', finishTime:'',
-    unit:'Emergency Department', location:'', observer:'', naSections:{},
+    unit:'Emergency Department', location:'', observer:'', mrn:'', naSections:{},
     trolleyPrep:'', cannulating:'', assisting:'', trolleyCleaned:'',
     answers:{}, vol1:'', vol2:'', site:'', notes:{}, nonCompliance:'', feedback:'',
     createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
@@ -709,6 +710,9 @@ function renderNew(){
         <div class="field"><label>Location</label><input type="text" id="f_location" value="${d.location}"></div>
         <div class="field"><label>Observer / Auditor</label><input type="text" id="f_observer" value="${d.observer}"></div>
       </div>
+      <div class="row2">
+        <div class="field"><label>Patient MRN</label><input type="text" inputmode="numeric" id="f_mrn" value="${d.mrn||''}" placeholder="Medical record number"></div>
+      </div>
     </div>
     <div class="card">
       <h3 style="font-size:14px;margin-bottom:12px;font-family:inherit">Staff Observed</h3>
@@ -740,6 +744,9 @@ function renderNew(){
     const id=t.dataset.natoggle;
     d.naSections = d.naSections||{};
     d.naSections[id] = !d.naSections[id];
+    // Marking a section N/A collapses it immediately so there's nothing left
+    // to scroll past; un-marking it expands it back open automatically.
+    collapsedSections[id] = !!d.naSections[id];
     renderNew();
   });
   el.querySelectorAll('[data-collapsetoggle]').forEach(h=>h.onclick=(ev)=>{
@@ -779,7 +786,7 @@ function renderNew(){
   el.querySelectorAll('[data-vol]').forEach(inp=>inp.oninput=()=>{ d['vol'+inp.dataset.vol]=inp.value; });
   const siteGroup = el.querySelector('[data-site-group]');
   if(siteGroup) siteGroup.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ d.site = d.site===c.dataset.site ? '' : c.dataset.site; renderNew(); });
-  const fmap = {f_date:'date',f_unit:'unit',f_start:'startTime',f_finish:'finishTime',f_location:'location',f_observer:'observer',f_trolleyPrep:'trolleyPrep',f_cannulating:'cannulating',f_assisting:'assisting',f_trolleyCleaned:'trolleyCleaned',f_noncompliance:'nonCompliance'};
+  const fmap = {f_date:'date',f_unit:'unit',f_start:'startTime',f_finish:'finishTime',f_location:'location',f_observer:'observer',f_mrn:'mrn',f_trolleyPrep:'trolleyPrep',f_cannulating:'cannulating',f_assisting:'assisting',f_trolleyCleaned:'trolleyCleaned',f_noncompliance:'nonCompliance'};
   Object.entries(fmap).forEach(([domId,key])=>{ const node=document.getElementById(domId); if(node) node.oninput=()=>{ d[key]=node.value; }; });
   el.querySelectorAll('[data-feedback]').forEach(c=>c.onclick=()=>{ d.feedback = d.feedback===c.dataset.feedback ? '' : c.dataset.feedback; renderNew(); });
 
@@ -827,7 +834,7 @@ function renderHistory(){
         const sc=scoreObs(o);
         const types=drawLabel(o);
         return `<div class="obs-row" data-obsid="${o.id}">
-          <div class="meta"><div class="d">${fmtDate(o.date)}</div><div class="s">${types||'—'} · ${o.cannulating||o.observer||'—'}</div></div>
+          <div class="meta"><div class="d">${fmtDate(o.date)}${o.mrn?` · MRN ${o.mrn}`:''}</div><div class="s">${types||'—'} · ${o.cannulating||o.observer||'—'}</div></div>
           <span class="pill ${pillClass(sc.pct)}">${pctLabel(sc.pct)}</span>
         </div>`;
       }).join('')}
@@ -1138,7 +1145,7 @@ document.getElementById('newBtn').onclick=()=>{
 const INITIAL_OBS = [
   {
     id:'obs-2026-10-07-1', date:'2026-10-07', startTime:'', finishTime:'',
-    unit:'Emergency Department', location:'', observer:'', naSections:{C:true,F:true},
+    unit:'Emergency Department', location:'', observer:'', mrn:'', naSections:{C:true,F:true},
     trolleyPrep:'Sharon', cannulating:'Hossam', assisting:'Sharon', trolleyCleaned:'Hossam',
     answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'Yes',A7:'Yes',A8:'Yes',
       B1:'Yes',B2:'Yes',B3:'Yes',B4:'Yes',B5:'Yes',B6:'Yes',
@@ -1151,7 +1158,7 @@ const INITIAL_OBS = [
   },
   {
     id:'obs-2026-10-07-2', date:'2026-10-07', startTime:'', finishTime:'',
-    unit:'Emergency Department', location:'', observer:'', naSections:{C:true,F:true},
+    unit:'Emergency Department', location:'', observer:'', mrn:'', naSections:{C:true,F:true},
     trolleyPrep:'Mercy', cannulating:'Irfan', assisting:'Irfan', trolleyCleaned:'Irfan',
     answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'Yes',A7:'Yes',A8:'Yes',
       B1:'Yes',B2:'No',B3:'Yes',B4:'No',B5:'Yes',B6:'Yes',
