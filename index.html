@@ -223,7 +223,8 @@ const CHECKLIST = [
     {id:'B6',text:'Chlorhexidine caps applied to IV extension'}
   ]},
   { id:'C', title:'Blood Culture — Sterile Technique', applies:['cultures'], items:[
-    {id:'C1',text:'Hand hygiene performed before entering the room or before donning gloves'},
+    {id:'C1',text:'Hand hygiene performed before entering the room'},
+    {id:'C1a',text:'Hand hygiene performed before donning sterile gloves'},
     {id:'C2',text:'Nurse introduced themself (if first contact) and / or explained the procedure'},
     {id:'C3',text:'Patient identity confirmed using at least two identifiers'},
     {id:'C4',text:'Sterile gloves donned correctly'},
@@ -1184,6 +1185,35 @@ const INITIAL_OBS = [
     notes:{B:'Nurse name not mentioned though procedure well explained. Only 1 identifier used'},
     nonCompliance:'', feedback:'Yes',
     createdAt:'2026-10-07T00:00:02Z', updatedAt:'2026-10-19T00:00:00Z', imported:true
+  },
+  {
+    id:'obs-2026-10-26-1', date:'2026-10-26', startTime:'14:45', finishTime:'15:05',
+    unit:'Emergency Department', location:'', observer:'Violetta', mrn:'924404261', naSections:{B:true,F:true},
+    trolleyPrep:'Siva', cannulating:'Siva', assisting:'Sharifa', trolleyCleaned:'Siva',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'No',A6:'Yes',A7:'Yes',A8:'N/A',
+      C1:'N/O',C1a:'Yes',C2:'No',C3:'No',C4:'Yes',C5a:'No',C5:'Yes',C6:'Yes',C7:'Yes',C10:'Yes',
+      D1:'Yes',D2:'Yes',D3:'N/A',D4:'No',D5:'Yes',D6:'N/A',D7:'N/O',D8:'Yes',D9:'No',
+      E1:'Yes',E2:'Yes'},
+    vol1:'3', vol2:'3', site:'PIV', cannulationAttempts:'1',
+    itemNotes:{D4:'Wrong bin — black bin used instead of correct bin'},
+    notes:{C:'Nurse did not introduce themself. Only 1 patient identifier (name) confirmed — DOB not checked, and ID check happened after the procedure rather than before. Blood culture bottle top also rubbed with a chlorhexidine swab before inoculation.',
+      D:'Used items thrown away in the wrong bin (black bin used instead of correct bin). No Clinell wipes available in the room.'},
+    nonCompliance:'', feedback:'',
+    createdAt:'2026-10-26T14:45:00Z', updatedAt:'2026-10-26T16:30:00Z', imported:true
+  },
+  {
+    id:'obs-2026-10-26-2', date:'2026-10-26', startTime:'14:30', finishTime:'14:45',
+    unit:'Emergency Department', location:'', observer:'Violetta', mrn:'924457278', naSections:{C:true,F:true},
+    trolleyPrep:'Sharon', cannulating:'Sharon', assisting:'Shijo', trolleyCleaned:'Sharon',
+    answers:{A1:'Yes',A2:'Yes',A3:'Yes',A4:'Yes',A5:'No',A8:'Yes',
+      B1:'No',B2:'Yes',B3:'Yes',B4:'No',
+      D1:'Yes',D2:'Yes',D3:'Yes',D4:'Yes',D5:'Yes',D6:'N/A',D7:'Yes',
+      E1:'Yes',E2:'Yes'},
+    vol1:'', vol2:'', site:'', cannulationAttempts:'',
+    notes:{A:'Assisting nurse (Shijo) removed gloves and exited the room mid-procedure to fetch items; emesis basin used for VBG, biohazard bag used for carrying items.',
+      B:'2 identifiers not confirmed — patient had no ID band. Hand hygiene missed before entering room / donning gloves.'},
+    nonCompliance:'', feedback:'Yes',
+    createdAt:'2026-10-26T14:30:00Z', updatedAt:'2026-10-26T16:40:00Z', imported:true
   }
 ];
 function bootFromState(state){
