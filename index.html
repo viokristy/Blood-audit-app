@@ -227,10 +227,12 @@ const CHECKLIST = [
     {id:'C2',text:'Nurse introduced themself (if first contact) and / or explained the procedure'},
     {id:'C3',text:'Patient identity confirmed using at least two identifiers'},
     {id:'C4',text:'Sterile gloves donned correctly'},
-    {id:'C5',text:'Chlorhexidine-based antiseptic applied to skin using back-and-forth friction for a MINIMUM of 30 seconds'},
+    {id:'C5a',text:'Baby wipe used to clean skin prior to antisepsis'},
+    {id:'C5',text:'Chlorhexidine stick applied to skin using back-and-forth friction for a MINIMUM of 30 seconds'},
     {id:'C6',text:'Site allowed to dry completely before puncture (no fanning, wiping, or blowing on the site)'},
     {id:'C7',text:'Sterile technique maintained throughout the procedure'},
     {id:'C8',text:'Prepped site NOT re-palpated after antisepsis (or sterile glove used if palpation unavoidable)'},
+    {id:'C8a',text:'Number of cannulation attempts', type:'count'},
     {id:'C9',text:'Volume of blood collected for each blood culture bottle (mL)', type:'volume'},
     {id:'C10',text:'Chlorhexidine caps applied to IV extension'},
     {id:'C11',text:'Blood culture collection site', type:'site'}
@@ -427,6 +429,14 @@ function buildWorkbook(obsInput, target){
           if(o && sectionApplies(s,o) && o.site) cell.value=o.site;
           cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
           cell.dataValidation={type:'list',allowBlank:true,formulae:['"CVC,Port,PIV,Butterfly"']};
+        }
+      } else if(it.type==='count'){
+        style(row.getCell(3),{value:{formula:`IF(COUNT(D${r}:${LC}${r})=0,"",AVERAGE(D${r}:${LC}${r}))`},numFmt:'0.0',fill:fill(F.auto)});
+        for(let i=0;i<N;i++){
+          const cell=row.getCell(C0+i); const o=obsList[i];
+          const v = o && sectionApplies(s,o) ? o.cannulationAttempts : null;
+          if(v!==null&&v!==undefined&&v!=='') cell.value=Number(v);
+          cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
         }
       } else {
         style(row.getCell(3),{value:{formula:pctF(`D${r}:${LC}${r}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'}});
@@ -661,6 +671,11 @@ function renderNew(){
             <div class="field"><label>Bottle 2 (mL)</label><input type="number" step="0.1" min="0" value="${d.vol2||''}" data-vol="2"></div>
           </div></div>`;
       }
+      if(it.type==='count'){
+        return `<div class="item"><div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
+          <div class="field" style="max-width:160px"><input type="number" step="1" min="0" value="${d.cannulationAttempts||''}" data-count="cannulationAttempts" placeholder="e.g. 1"></div>
+          </div>`;
+      }
       if(it.type==='site'){
         return `<div class="item"><div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
           <div class="chip-group" data-site-group>
@@ -784,6 +799,7 @@ function renderNew(){
   });
   el.querySelectorAll('[data-secnote]').forEach(ta=>ta.oninput=()=>{ d.notes[ta.dataset.secnote]=ta.value; });
   el.querySelectorAll('[data-vol]').forEach(inp=>inp.oninput=()=>{ d['vol'+inp.dataset.vol]=inp.value; });
+  el.querySelectorAll('[data-count]').forEach(inp=>inp.oninput=()=>{ d[inp.dataset.count]=inp.value; });
   const siteGroup = el.querySelector('[data-site-group]');
   if(siteGroup) siteGroup.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{ d.site = d.site===c.dataset.site ? '' : c.dataset.site; renderNew(); });
   const fmap = {f_date:'date',f_unit:'unit',f_start:'startTime',f_finish:'finishTime',f_location:'location',f_observer:'observer',f_mrn:'mrn',f_trolleyPrep:'trolleyPrep',f_cannulating:'cannulating',f_assisting:'assisting',f_trolleyCleaned:'trolleyCleaned',f_noncompliance:'nonCompliance'};
