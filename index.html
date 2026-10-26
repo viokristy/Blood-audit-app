@@ -619,10 +619,29 @@ function currentDocHTML(){
   const dataScript = '<script id="seed-data" type="application/json">' + safeJson + closeTag;
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${metaEl}${titleEl}${styleEl}</head><body>${bodyInner}${dataScript}</body></html>`;
 }
+/* ---- Standalone (non-Claude, e.g. GitHub Pages) persistence fallback.
+   When this page is NOT running inside a Claude artifact, `claude` is
+   undefined and claude.use('artifact') is never available — so every save
+   must go to localStorage instead, or nothing is durable and a refresh
+   silently wipes whatever was entered. ---- */
+const LOCAL_KEY = 'blood-audit-app-state-v1';
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(serializeState())); }
+  catch(e){ console.error('localStorage save failed', e); toast('Could not save — storage unavailable'); }
+}
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LOCAL_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
 async function persist(){
-  if(!artifactCap || !canWrite) return;
+  if(!artifactCap){ saveLocal(); return; }
+  if(!canWrite){ saveLocal(); return; }
   try{ await artifactCap.publish(currentDocHTML()); }
-  catch(e){ if(e && e.code==='conflict'){ /* another view saved; it will reload */ } else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; } }
+  catch(e){
+    if(e && e.code==='conflict'){ /* another view saved; it will reload */ }
+    else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; saveLocal(); }
+    else { saveLocal(); } // any other publish failure: still keep a local copy rather than lose the data
+  }
 }
 
 /* ===================== Rendering: New Observation screen ===================== */
@@ -1078,12 +1097,18 @@ function renderExport(){
       const wb = buildWorkbook(OBS, TARGET);
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-      const dl = await claude.use('downloads');
-      if(dl){
-        const name = `Blood_Collection_Audit_Score_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`;
-        await dl.save({filename:name, data:blob});
+      const name = `Blood_Collection_Audit_Score_Sheet_${new Date().toISOString().slice(0,10)}.xlsx`;
+      if(typeof claude !== 'undefined' && claude && claude.use){
+        const dl = await claude.use('downloads');
+        if(dl){ await dl.save({filename:name, data:blob}); toast('Downloaded'); }
+        else { toast('Downloads unavailable in this view'); }
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = name; document.body.appendChild(a); a.click();
+        a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
         toast('Downloaded');
-      } else { toast('Downloads unavailable in this view'); }
+      }
     }catch(e){ console.error(e); toast('Could not build the file'); }
     btn.disabled=false; btn.textContent='Download .xlsx';
   };
@@ -1154,12 +1179,20 @@ function readSeed(){
   catch(e){ return { hadTag:true, state:null }; }
 }
 (async function init(){
+  if(typeof claude === 'undefined' || !claude || !claude.use){
+    // Not running inside a Claude artifact (e.g. hosted standalone on GitHub Pages) —
+    // load from this browser's localStorage instead of the artifact seed tag.
+    const saved = loadLocal();
+    bootFromState(saved || { obs: INITIAL_OBS.slice(), target: 0.9 });
+    if(!saved) saveLocal(); // first-ever load on this device: write the seeded observations so they stick
+    return;
+  }
   const seed = readSeed();
   bootFromState(seed.state);
   try{
     artifactCap = await claude.use('artifact');
     if(!seed.hadTag) await persist(); // true first-ever load: write the seeded observations so they stick
-  }catch(e){ artifactCap = null; }
+  }catch(e){ artifactCap = null; saveLocal(); }
 })();
 window.claude && window.claude.hot && window.claude.hot.snapshot && window.claude.hot.snapshot(()=>({}));
 </script>
