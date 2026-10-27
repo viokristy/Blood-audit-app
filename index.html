@@ -1354,16 +1354,17 @@ const INITIAL_OBS = [
     id:'obs-2026-10-14-5', date:'2026-10-14', startTime:'12:30', finishTime:'13:00',
     unit:'Emergency Department', location:'Minors', observer:'Violetta', mrn:'924978575', naSections:{B:true,F:true},
     trolleyPrep:'Not observed', cannulating:'Reshma', assisting:'Sneha', trolleyCleaned:'Reshma',
-    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'Yes',A6:'No',A7:'No',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'No',A6:'No',A7:'No',
+      C1:'N/O',C2:'N/O',C3:'N/O',C4:'N/O',C5:'N/O',C6:'N/O',C7:'No',C8:'Yes',C10:'Yes',
       D1:'No',D2:'No',D3:'No',D4:'Yes',D5:'Yes',D6:'N/A',D7:'Yes',D8:'No',
       E1:'Yes',E2:'Yes'},
-    vol1:'', vol2:'', site:'', cannulationAttempts:'',
-    itemNotes:{A6:'Date not written on IV cannula dressing',A7:'VBG emesis basin not carried',D1:'Labels not attached — no battery in Sunquest scanner',D2:'Tubes not placed in biohazard bag (not labelled, due to scanner battery issue)',D3:'Assisting nurse did not remove gloves in the room',D8:'Next steps not explained to patient/family'},
-    notes:{A:'No battery in Sunquest scanner — labels could not be printed. Date not written on the IV cannula dressing outside. VBG emesis basin not carried.',
-      C:'Section not captured on the submitted photos — to be added separately.',
+    vol1:'1', vol2:'', site:'PIV', cannulationAttempts:'',
+    itemNotes:{A5:'Biohazard transport bag not taken to bedside',A6:'Date not written on IV cannula dressing',A7:'VBG emesis basin not carried',C7:'Sterile technique not maintained throughout',D1:'Labels not attached — no battery in Sunquest scanner',D2:'Tubes not placed in biohazard bag (not labelled, due to scanner battery issue)',D3:'Assisting nurse did not remove gloves in the room',D8:'Next steps not explained to patient/family'},
+    notes:{A:'No battery in Sunquest scanner — labels could not be printed. Biohazard bag not taken to bedside. Date not written on the IV cannula dressing outside. VBG emesis basin not carried.',
+      C:'Observer witnessed only half the procedure, not from the beginning — hand hygiene, introduction, patient ID, glove donning and antisepsis (C1–C6) were not observed. Sterile technique was not maintained throughout the part that was witnessed.',
       D:'Labels not attached to tubes and tubes not placed in the biohazard bag (Sunquest scanner had no battery). Assisting nurse did not remove gloves in the room. Next steps not explained to patient/family.'},
     nonCompliance:'Bottle not cleaned before starting; emesis basin used for VBG, biohazard bag for bloods; do not touch cannula with a non-sterile hand; do not change needle before blood culture injection (nurse: Reshma).', feedback:'Yes',
-    createdAt:'2026-10-14T12:30:00Z', updatedAt:'2026-10-27T15:55:00Z', imported:true
+    createdAt:'2026-10-14T12:30:00Z', updatedAt:'2026-10-27T16:12:00Z', imported:true
   }
 ];
 function bootFromState(state){
