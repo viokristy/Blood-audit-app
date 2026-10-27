@@ -1302,6 +1302,22 @@ const INITIAL_OBS = [
       D:'Labels not attached to tubes inside the room and not placed in the biohazard bag. Next steps not explained to patient/family. Tourniquet used once then correctly discarded (single use).'},
     nonCompliance:'Hand hygiene before entering room; introduce yourself; use 2 identifiers; bring Zebra printer and biohazard bag; write date on IV cannula dressing; explain what happens next (nurse: Sneha).', feedback:'Yes',
     createdAt:'2026-10-15T10:30:00Z', updatedAt:'2026-10-27T09:38:00Z', imported:true
+  },
+  {
+    id:'obs-2026-10-15-3', date:'2026-10-15', startTime:'', finishTime:'',
+    unit:'Emergency Department', location:'Minors', observer:'Violetta', mrn:'102017611', naSections:{C:true,F:true},
+    trolleyPrep:'Rekha', cannulating:'Rekha', assisting:'Rufeetha', trolleyCleaned:'',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'Yes',A5:'No',A6:'No',
+      B1:'Yes',B2:'No',B2a:'Yes',B3:'Yes',B4:'No',B6:'Yes',
+      D1:'Yes',D2:'No',D3:'Yes',D4:'Yes',D5:'Yes',D6:'N/A',D7:'Yes',D8:'No',
+      E1:'Yes',E2:'Yes'},
+    vol1:'', vol2:'', site:'', cannulationAttempts:'',
+    itemNotes:{B2:'Procedure was explained, but nurse did not introduce themself',B4:'Patient’s name not checked as an identifier',D2:'Labelled tube placed in biohazard bag in the room, but not immediately',D8:'Next steps not explained to patient/family'},
+    notes:{A:'Date not written on the IV cannula dressing outside. Biohazard bag not taken to bedside at the start — brought in partway through the procedure instead.',
+      B:'Nurse did not introduce themself, though the procedure was explained. Patient’s name not checked as an identifier.',
+      D:'Labelled tube not placed in the biohazard bag immediately. Next steps not explained to patient/family.'},
+    nonCompliance:'Bring biohazard bag, emesis basin and items before starting (not mid-procedure); use 2 identifiers; introduce yourself; put labelled tube in biohazard bag while still in the room; explain what happens next; wipe trolley covers as well as surfaces (nurse: Rekha).', feedback:'Yes',
+    createdAt:'2026-10-15T00:00:00Z', updatedAt:'2026-10-27T09:48:00Z', imported:true
   }
 ];
 function bootFromState(state){
