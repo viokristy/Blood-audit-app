@@ -1283,6 +1283,22 @@ const INITIAL_OBS = [
     notes:{A:'IV extension flushed and left in original package with chlorhexidine cap attached. Cannulation required 2 attempts: Reshma (1st, unsuccessful), Sara (2nd, successful).'},
     nonCompliance:'', feedback:'',
     createdAt:'2026-10-14T11:15:00Z', updatedAt:'2026-10-27T09:34:00Z', imported:true
+  },
+  {
+    id:'obs-2026-10-15-2', date:'2026-10-15', startTime:'10:30', finishTime:'10:50',
+    unit:'Emergency Department', location:'Majors', observer:'Violetta', mrn:'924743567', naSections:{C:true,F:true},
+    trolleyPrep:'Sneha', cannulating:'Sneha (1st attempt), Maya (2nd attempt)', assisting:'Maya', trolleyCleaned:'Sneha',
+    answers:{A1:'N/O',A2:'Yes',A3:'Yes',A4:'No',A5:'No',A6:'No',
+      B1:'No',B2:'No',B3:'Yes',B4:'No',B6:'Yes',
+      D1:'No',D2:'No',D3:'Yes',D4:'Yes',D5:'Yes',D6:'N/O',D7:'Yes',D8:'No',
+      E1:'Yes',E2:'Yes'},
+    vol1:'', vol2:'', site:'', cannulationAttempts:'',
+    itemNotes:{B2:'Procedure was explained, but nurse did not introduce themself',B4:'Only 1 identifier (name) used, not 2',D8:'Next steps not explained to patient/family'},
+    notes:{A:'Date not written on the IV cannula dressing outside.',
+      B:'Hand hygiene not performed before entering the room / donning gloves. Nurse explained the procedure but did not introduce themself. Only 1 identifier (name) checked.',
+      D:'Labels not attached to tubes inside the room and not placed in the biohazard bag. Next steps not explained to patient/family. Tourniquet used once then correctly discarded (single use).'},
+    nonCompliance:'Hand hygiene before entering room; introduce yourself; use 2 identifiers; bring Zebra printer and biohazard bag; write date on IV cannula dressing; explain what happens next (nurse: Sneha).', feedback:'Yes',
+    createdAt:'2026-10-15T10:30:00Z', updatedAt:'2026-10-27T09:38:00Z', imported:true
   }
 ];
 function bootFromState(state){
