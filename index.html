@@ -206,29 +206,29 @@ const DRAW_TYPES = [
 const CHECKLIST = [
   { id:'A', title:'Pre-Procedure Preparation & Supplies', sub:'Routine Bloods / Blood Culture — trolley-based', applies:['bloods','cultures'], items:[
     {id:'A1',text:'Trolley cleaned before preparation'},
-    {id:'A2',text:'Blood collected in Salama before entering the room', cat:'process'},
-    {id:'A3',text:'Sunquest scanner taken to bedside', cat:'process'},
-    {id:'A4',text:'Zebra printer taken to bedside', cat:'process'},
+    {id:'A2',text:'Blood collected in Salama before entering the room', cat:'logistics'},
+    {id:'A3',text:'Sunquest scanner taken to bedside', cat:'logistics'},
+    {id:'A4',text:'Zebra printer taken to bedside', cat:'logistics'},
     {id:'A5',text:'Biohazard transport bag taken to bedside'},
     {id:'A6',text:'Date written on the IV cannula dressing outside'},
     {id:'A7',text:'Ivy extension flushed and left in the original package'},
-    {id:'A8',text:'Emesis basin and label carried for VBG', cat:'process'}
+    {id:'A8',text:'Emesis basin and label carried for VBG', cat:'logistics'}
   ]},
   { id:'B', title:'Regular Blood Collection', applies:['bloods'], items:[
     {id:'B1',text:'Hand hygiene performed before entering the room or before donning gloves'},
-    {id:'B2',text:'Nurse introduced themself (if first contact)', cat:'process'},
-    {id:'B2a',text:'Procedure explained to patient / family', cat:'process'},
+    {id:'B2',text:'Nurse introduced themself (if first contact)', cat:'attitude'},
+    {id:'B2a',text:'Procedure explained to patient / family', cat:'attitude'},
     {id:'B3',text:'Gloves worn inside the room'},
-    {id:'B4',text:'Patient identity confirmed using at least two identifiers', cat:'process'},
+    {id:'B4',text:'Patient identity confirmed using at least two identifiers', cat:'id'},
     {id:'B5',text:'Aseptic non-touch technique maintained throughout'},
     {id:'B6',text:'Chlorhexidine caps applied to IV extension'}
   ]},
   { id:'C', title:'Blood Culture — Sterile Technique', applies:['cultures'], items:[
     {id:'C1',text:'Hand hygiene performed before entering the room'},
     {id:'C1a',text:'Hand hygiene performed before donning sterile gloves'},
-    {id:'C2',text:'Nurse introduced themself (if first contact)', cat:'process'},
-    {id:'C2a',text:'Procedure explained to patient / family', cat:'process'},
-    {id:'C3',text:'Patient identity confirmed using at least two identifiers', cat:'process'},
+    {id:'C2',text:'Nurse introduced themself (if first contact)', cat:'attitude'},
+    {id:'C2a',text:'Procedure explained to patient / family', cat:'attitude'},
+    {id:'C3',text:'Patient identity confirmed using at least two identifiers', cat:'id'},
     {id:'C4',text:'Sterile gloves donned correctly'},
     {id:'C5a',text:'Baby wipe used to clean skin prior to antisepsis'},
     {id:'C5',text:'Chlorhexidine stick applied to skin using back-and-forth friction for a MINIMUM of 30 seconds'},
@@ -241,7 +241,7 @@ const CHECKLIST = [
     {id:'C11',text:'Blood culture collection site', type:'site'}
   ]},
   { id:'D', title:'Post-Procedure (Routine Bloods & Blood Culture)', applies:['bloods','cultures'], items:[
-    {id:'D1',text:'Labels attached to the tube(s), post-procedure, inside the room', cat:'process'},
+    {id:'D1',text:'Labels attached to the tube(s), post-procedure, inside the room', cat:'logistics'},
     {id:'D2',text:'Labelled tube(s) placed into the biohazard bag'},
     {id:'D3',text:'Assisting nurse for VBG removed gloves in the room'},
     {id:'D4',text:'Used items thrown away in correct bin in the room'},
@@ -249,18 +249,18 @@ const CHECKLIST = [
     {id:'D5',text:'Sharps discarded in sharp box'},
     {id:'D6',text:'Visible blood stains cleaned'},
     {id:'D7',text:'Gloves removed inside the room and discarded in yellow bin'},
-    {id:'D8',text:'Next steps explained to patient / family (e.g., waiting time, what happens next)', cat:'process'},
+    {id:'D8',text:'Next steps explained to patient / family (e.g., waiting time, what happens next)', cat:'attitude'},
     {id:'D9',text:'Hand hygiene performed when exiting room'}
   ]},
   { id:'E', title:'Post-Procedure Exit', sub:'Routine Bloods / Blood Culture — trolley-based', applies:['bloods','cultures'], items:[
-    {id:'E1',text:'All unused / opened items removed from the trolley (no clutter left behind)', cat:'process'},
+    {id:'E1',text:'All unused / opened items removed from the trolley (no clutter left behind)', cat:'logistics'},
     {id:'E2',text:'Trolley surfaces wiped / disinfected after the procedure'}
   ]},
   { id:'F', title:'CBG Collection', applies:['cbg'], items:[
-    {id:'F1',text:'CBG supplies carried in an emesis basin', cat:'process'},
+    {id:'F1',text:'CBG supplies carried in an emesis basin', cat:'logistics'},
     {id:'F2',text:'Hand hygiene performed before entering the room or before touching the patient'},
-    {id:'F3',text:'Nurse introduced themself (if first contact)', cat:'process'},
-    {id:'F3a',text:'Procedure explained to patient / family', cat:'process'},
+    {id:'F3',text:'Nurse introduced themself (if first contact)', cat:'attitude'},
+    {id:'F3a',text:'Procedure explained to patient / family', cat:'attitude'},
     {id:'F4',text:'Gloves removed in the room'}
   ]}
 ];
@@ -282,30 +282,41 @@ function drawLabel(o){
   return parts.length ? parts.join(' + ') : '—';
 }
 function pctOf(r){ return (r.yes+r.no) ? r.yes/(r.yes+r.no) : null; }
-// Items tagged cat:'process' (patient/staff identification, communication, logistics — e.g.
-// nurse introduction, patient ID checks, carrying scanners/printers) are counted separately
-// from infection-prevention items (hand hygiene, sterile technique, cleaning, waste/sharps
-// handling), so a lapse in identification never pulls down the technique/cleaning score.
+// Items carry an optional cat: 'id' (patient identification), 'attitude' (nurse introduction /
+// explaining the procedure or next steps) or 'logistics' (carrying/placing equipment and
+// supplies — scanner, printer, biohazard bag, labels). Untagged items are infection-prevention /
+// technique (hand hygiene, sterile technique, cleaning, waste/sharps handling). Each category is
+// tallied separately so a lapse in identification, bedside manner, or equipment handling never
+// pulls down the technique score — this is what lets blood culture's own sterile-technique score
+// (section C) stand on its own, independent of whether the nurse introduced themself or checked
+// the patient's name.
+const CATS = ['id','attitude','logistics'];
+function emptyBucket(){ return {yes:0,no:0,nobs:0,na:0,open:0}; }
+function newRow(applicable){
+  const r={yes:0,no:0,nobs:0,na:0,open:0,byCat:{},applicable};
+  for(const c of CATS) r.byCat[c]=emptyBucket();
+  return r;
+}
 function scoreObs(o){
-  const tot={yes:0,no:0,nobs:0,na:0,open:0,procYes:0,procNo:0,procNobs:0,procNa:0,procOpen:0,sections:{}};
+  const tot=newRow(true); tot.sections={};
   for(const s of CHECKLIST){
     const app=sectionApplies(s,o);
-    const r={yes:0,no:0,nobs:0,na:0,open:0,procYes:0,procNo:0,procNobs:0,procNa:0,procOpen:0,applicable:app};
+    const r=newRow(app);
     for(const it of s.items){
       if(it.type) continue;
       const a=app ? ((o.answers||{})[it.id]||'') : 'N/A';
-      const isProc = it.cat==='process';
-      if(a==='Yes') r[isProc?'procYes':'yes']++;
-      else if(a==='No') r[isProc?'procNo':'no']++;
-      else if(a==='N/O') r[isProc?'procNobs':'nobs']++;
-      else if(a==='N/A') r[isProc?'procNa':'na']++;
-      else r[isProc?'procOpen':'open']++;
+      const bucket = (it.cat && r.byCat[it.cat]) ? r.byCat[it.cat] : r;
+      if(a==='Yes') bucket.yes++; else if(a==='No') bucket.no++;
+      else if(a==='N/O') bucket.nobs++; else if(a==='N/A') bucket.na++; else bucket.open++;
     }
-    r.pct=pctOf(r); r.procPct=pctOf({yes:r.procYes,no:r.procNo}); tot.sections[s.id]=r;
-    for(const k of ['yes','no','nobs','na','open','procYes','procNo','procNobs','procNa','procOpen']) tot[k]+= app?r[k]:0;
+    r.pct=pctOf(r);
+    for(const c of CATS) r.byCat[c].pct=pctOf(r.byCat[c]);
+    tot.sections[s.id]=r;
+    for(const k of ['yes','no','nobs','na','open']) tot[k]+= app?r[k]:0;
+    for(const c of CATS) for(const k of ['yes','no','nobs','na','open']) tot.byCat[c][k]+= app?r.byCat[c][k]:0;
   }
   tot.pct=pctOf(tot);
-  tot.procPct=pctOf({yes:tot.procYes,no:tot.procNo});
+  for(const c of CATS) tot.byCat[c].pct=pctOf(tot.byCat[c]);
   return tot;
 }
 function sortObs(list){
@@ -709,7 +720,9 @@ function renderNew(){
     return `<div class="section-head" data-collapsetoggle="${sec.id}"><h2><span class="chev ${collapsed?'collapsed':''}">▾</span>${sec.id}. ${sec.title}</h2>
         <div style="display:flex;align-items:center;gap:8px">
           ${applies ? `<span class="pct" title="Infection-prevention / technique score" style="background:${r.pct===null?'var(--na-bg)':r.pct>=TARGET?'var(--yes-bg)':'var(--no-bg)'};color:${r.pct===null?'var(--na)':r.pct>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(r.pct)}</span>` : ''}
-          ${applies && sec.items.some(i=>i.cat==='process') ? `<span class="pct" title="ID / communication / logistics score — kept separate from the technique score above" style="background:var(--na-bg);color:var(--na)">ID ${pctLabel(r.procPct)}</span>` : ''}
+          ${applies && sec.items.some(i=>i.cat==='id') ? `<span class="pct" title="Patient identification score — kept separate from technique" style="background:var(--na-bg);color:var(--na)">ID ${pctLabel(r.byCat.id.pct)}</span>` : ''}
+          ${applies && sec.items.some(i=>i.cat==='attitude') ? `<span class="pct" title="Nurse introduction / communication score — kept separate from technique" style="background:var(--na-bg);color:var(--na)">Attd ${pctLabel(r.byCat.attitude.pct)}</span>` : ''}
+          ${applies && sec.items.some(i=>i.cat==='logistics') ? `<span class="pct" title="Equipment / supplies handling score — kept separate from technique" style="background:var(--na-bg);color:var(--na)">Log ${pctLabel(r.byCat.logistics.pct)}</span>` : ''}
           ${TOGGLEABLE_SECTIONS.includes(sec.id) ? `<button type="button" class="na-toggle ${applies?'':'on'}" data-natoggle="${sec.id}">${applies ? 'Mark N/A' : 'N/A ✕'}</button>` : ''}
         </div>
       </div>
@@ -846,7 +859,9 @@ function renderHistory(){
     return;
   }
   const overall = scoreOverall(OBS);
-  const overallProc = scoreOverallProc(OBS);
+  const overallId = scoreOverallCat(OBS,'id');
+  const overallAttitude = scoreOverallCat(OBS,'attitude');
+  const overallLogistics = scoreOverallCat(OBS,'logistics');
   const secAvg = CHECKLIST.map(s=>{
     const vals = OBS.map(o=>scoreObs(o).sections[s.id]).filter(r=>r.applicable && r.pct!==null);
     const avg = vals.length ? vals.reduce((a,b)=>a+b.pct,0)/vals.length : null;
@@ -856,7 +871,9 @@ function renderHistory(){
     <div class="statgrid" style="margin-bottom:14px">
       <div class="stat"><div class="n">${list.length}</div><div class="l">Observations</div></div>
       <div class="stat"><div class="n" style="color:${overall===null?'inherit':overall>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(overall)}</div><div class="l">Overall score (infection/technique)</div></div>
-      <div class="stat"><div class="n" style="color:var(--ink-dim)">${pctLabel(overallProc)}</div><div class="l">ID / communication / logistics</div></div>
+      <div class="stat"><div class="n" style="color:var(--ink-dim)">${pctLabel(overallId)}</div><div class="l">Patient identification</div></div>
+      <div class="stat"><div class="n" style="color:var(--ink-dim)">${pctLabel(overallAttitude)}</div><div class="l">Nurse introduction / communication</div></div>
+      <div class="stat"><div class="n" style="color:var(--ink-dim)">${pctLabel(overallLogistics)}</div><div class="l">Equipment / supplies handling</div></div>
     </div>
     <div class="card">
       <h3 style="font-size:14px;margin-bottom:8px;font-family:inherit">Average by section</h3>
@@ -888,11 +905,11 @@ function scoreOverall(list){
   for(const o of list){ const s=scoreObs(o); yes+=s.yes; no+=s.no; }
   return (yes+no) ? yes/(yes+no) : null;
 }
-// Same as scoreOverall but for cat:'process' items (ID / communication / logistics) — kept
-// as its own figure so it never blends into the infection-prevention compliance score above.
-function scoreOverallProc(list){
+// Same as scoreOverall but for one of the separate categories (id / attitude / logistics) —
+// each kept as its own figure so it never blends into the infection-prevention score above.
+function scoreOverallCat(list, cat){
   let yes=0,no=0;
-  for(const o of list){ const s=scoreObs(o); yes+=s.procYes; no+=s.procNo; }
+  for(const o of list){ const s=scoreObs(o); yes+=s.byCat[cat].yes; no+=s.byCat[cat].no; }
   return (yes+no) ? yes/(yes+no) : null;
 }
 
