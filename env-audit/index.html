@@ -1,0 +1,1105 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Environmental &amp; IPC Audit</title>
+<style>
+/* Layout: single-page app, bottom tab bar (New / History / Insights / Export), one screen visible at a time.
+   Color: clinical teal + ink neutrals; red/amber/green only for compliance signal. */
+:root{
+  --bg:#F4F7F7; --surface:#FFFFFF; --surface-2:#EAF0F0; --border:#D7E2E2;
+  --ink:#16302E; --ink-dim:#5B7472; --accent:#0E7C7B; --accent-ink:#FFFFFF;
+  --yes:#1E8E5A; --yes-bg:#E3F5EA; --no:#C4432B; --no-bg:#FBE7E2;
+  --na:#7A8B8A; --na-bg:#EAEEED; --warn-bg:#FFF4D6; --warn-ink:#7A5B00;
+  --shadow: 0 1px 2px rgba(20,40,38,.06), 0 4px 14px rgba(20,40,38,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1716; --surface:#172422; --surface-2:#1E2D2B; --border:#2B3B38;
+    --ink:#E7EFEE; --ink-dim:#9AB0AD; --accent:#43C6B8; --accent-ink:#06211F;
+    --yes:#55C487; --yes-bg:#163227; --no:#E8836A; --no-bg:#3A2420;
+    --na:#8EA3A0; --na-bg:#23302E; --warn-bg:#3A3215; --warn-ink:#E8C76B;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1716; --surface:#172422; --surface-2:#1E2D2B; --border:#2B3B38;
+  --ink:#E7EFEE; --ink-dim:#9AB0AD; --accent:#43C6B8; --accent-ink:#06211F;
+  --yes:#55C487; --yes-bg:#163227; --no:#E8836A; --no-bg:#3A2420;
+  --na:#8EA3A0; --na-bg:#23302E; --warn-bg:#3A3215; --warn-ink:#E8C76B;
+  color-scheme: dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+.ans-btn,.chip,.na-toggle,.tab,.linklike,.btn{font-family:inherit;-webkit-appearance:none;appearance:none;touch-action:manipulation;margin:0;text-align:center}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex; flex-direction:column; min-height:100%;
+}
+h1,h2,h3{font-family:'Fraunces',Georgia,serif; margin:0; text-wrap:balance}
+.app{flex:1; display:flex; flex-direction:column; max-width:640px; width:100%; margin:0 auto; min-width:0}
+header.top{
+  position:sticky; top:env(safe-area-inset-top,0px); z-index:10;
+  background:var(--bg); padding-block:14px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:9;background:var(--bg)}
+header.top .brand{display:flex; align-items:center; gap:10px}
+header.top .mark{width:30px;height:30px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+header.top .mark svg{width:16px;height:16px}
+header.top h1{font-size:17px;color:var(--ink)}
+header.top .sub{font-size:11px;color:var(--ink-dim);letter-spacing:.02em}
+main{flex:1; padding-bottom:92px; min-width:0}
+.screen{display:none; padding-block:4px 20px}
+.screen.active{display:block}
+.card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; box-shadow:var(--shadow)}
+.field{margin-bottom:14px}
+.field label{display:block; font-size:12px; font-weight:600; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px}
+.field input[type=text], .field input[type=time], .field input[type=date], .field input[type=number], .field textarea, .field select{
+  width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface-2); color:var(--ink); font-size:15px; font-family:inherit;
+}
+.field textarea{min-height:60px; resize:vertical}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+@media (max-width:420px){.row2{grid-template-columns:1fr}}
+.chip-group{display:flex; gap:8px; flex-wrap:wrap}
+.chip{
+  padding:9px 14px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--ink); font-size:14px; font-weight:600; cursor:pointer; user-select:none;
+}
+.chip.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.section-head{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:22px 0 10px}
+.section-head h2{font-size:18px}
+.section-head .pct{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; padding:3px 9px; border-radius:999px}
+.section-sub{font-size:12px; color:var(--ink-dim); font-style:italic; margin:-6px 0 10px}
+.item{border-top:1px solid var(--border); padding:13px 0}
+.item:first-child{border-top:none; padding-top:2px}
+.item .text{font-size:14.5px; line-height:1.4; margin-bottom:10px}
+.item .idtag{font-size:11px; font-weight:700; color:var(--accent); margin-right:6px}
+.ans-group{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+.ans-btn{
+  padding:9px 4px; text-align:center; border-radius:9px; border:1px solid var(--border); background:var(--surface-2);
+  color:var(--ink-dim); font-size:13px; font-weight:700; cursor:pointer; min-width:0;
+}
+.ans-btn.sel-Yes{background:var(--yes-bg); color:var(--yes); border-color:var(--yes)}
+.ans-btn.sel-No{background:var(--no-bg); color:var(--no); border-color:var(--no)}
+.ans-btn.sel-N-O, .ans-btn.sel-N-A{background:var(--na-bg); color:var(--na); border-color:var(--na)}
+.ans-group input[type=radio]{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ans-btn:has(input[value="Yes"]:checked){background:var(--yes-bg); color:var(--yes); border-color:var(--yes)}
+.ans-btn:has(input[value="No"]:checked){background:var(--no-bg); color:var(--no); border-color:var(--no)}
+.ans-btn:has(input[value="N/O"]:checked), .ans-btn:has(input[value="N/A"]:checked){background:var(--na-bg); color:var(--na); border-color:var(--na)}
+.note-flag{margin-top:10px}
+.note-flag input{width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--no); background:var(--no-bg); color:var(--ink); font-size:13.5px}
+.sec-note{margin-top:14px}
+.sec-note label{font-size:12px; color:var(--ink-dim); font-weight:600}
+.sec-note textarea{width:100%; margin-top:6px}
+.summary-bar{height:8px; border-radius:999px; background:var(--surface-2); overflow:hidden}
+.summary-bar > div{height:100%; border-radius:999px}
+.save-bar{position:sticky; bottom:0; padding-block:12px calc(10px + env(safe-area-inset-bottom,0px)); background:linear-gradient(to top, var(--bg) 70%, transparent)}
+.btn{
+  display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:14px; border-radius:12px;
+  background:var(--accent); color:var(--accent-ink); font-size:15px; font-weight:700; border:none; cursor:pointer;
+}
+.btn.secondary{background:var(--surface-2); color:var(--ink); border:1px solid var(--border)}
+.btn.ghost{background:transparent; color:var(--accent); border:1px solid var(--accent)}
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:20; background:var(--surface); border-top:1px solid var(--border);
+  display:flex; padding-left:max(16px, env(safe-area-inset-left,0px)); padding-right:max(16px, env(safe-area-inset-right,0px));
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.tab{flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 4px 8px; color:var(--ink-dim); cursor:pointer; font-size:11px; font-weight:600}
+.tab.active{color:var(--accent)}
+.tab svg{width:21px;height:21px}
+.obs-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 0; border-top:1px solid var(--border); cursor:pointer; touch-action:manipulation}
+.obs-row:first-child{border-top:none}
+.obs-row .meta{min-width:0}
+.obs-row .meta .d{font-weight:700; font-size:14.5px}
+.obs-row .meta .s{font-size:12.5px; color:var(--ink-dim); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.pill{font-weight:700; font-size:13px; padding:4px 10px; border-radius:999px; font-variant-numeric:tabular-nums; flex-shrink:0}
+.pill.good{background:var(--yes-bg); color:var(--yes)}
+.pill.bad{background:var(--no-bg); color:var(--no)}
+.pill.mid{background:var(--warn-bg); color:var(--warn-ink)}
+.empty{text-align:center; padding:50px 20px; color:var(--ink-dim)}
+.empty h3{color:var(--ink); margin-bottom:8px; font-size:17px}
+.toast{
+  position:fixed; bottom:calc(76px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:999px; font-size:13.5px; font-weight:600;
+  opacity:0; transition:opacity .25s, transform .25s; pointer-events:none; z-index:30; white-space:nowrap;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.stat{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow:var(--shadow)}
+.stat .n{font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; font-family:'Fraunces',serif}
+.stat .l{font-size:11.5px; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.03em; margin-top:2px}
+.secbar-row{display:flex; align-items:center; gap:10px; padding:8px 0}
+.secbar-row .lab{width:30px; font-weight:700; font-size:13px; flex-shrink:0}
+.secbar-row .track{flex:1; height:9px; border-radius:999px; background:var(--surface-2); overflow:hidden}
+.secbar-row .track > div{height:100%; border-radius:999px; background:var(--accent)}
+.secbar-row .val{width:44px; text-align:right; font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; flex-shrink:0}
+select#targetPct{width:auto; display:inline-block; padding:6px 8px}
+.linklike{color:var(--accent); font-weight:600; font-size:13.5px; background:none; border:none; padding:0; cursor:pointer}
+.formula-note{font-size:12px; color:var(--ink-dim); line-height:1.5; margin-top:4px}
+.table-wrap{overflow-x:auto; margin-top:4px; -webkit-overflow-scrolling:touch}
+.mtable{width:100%; border-collapse:collapse; font-size:12px; font-variant-numeric:tabular-nums}
+.mtable th,.mtable td{padding:7px 9px; text-align:center; white-space:nowrap; border-bottom:1px solid var(--border)}
+.mtable th{color:var(--ink-dim); font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em}
+.mtable td:first-child,.mtable th:first-child{text-align:left}
+.mtable tbody tr:last-child td{border-bottom:none}
+.hbar-row{display:flex; align-items:center; gap:10px; padding:7px 0}
+.hbar-row .lab{width:150px; flex-shrink:0; font-size:12.5px; line-height:1.3}
+.hbar-row .lab .id{font-weight:700; color:var(--accent); margin-right:4px}
+.hbar-row .track{flex:1; height:16px; border-radius:6px; background:var(--surface-2); overflow:hidden; min-width:0}
+.hbar-row .track > div{height:100%; border-radius:6px; background:var(--no)}
+.hbar-row .val{width:30px; text-align:right; font-size:12.5px; font-weight:700; flex-shrink:0; font-variant-numeric:tabular-nums}
+.card.na{opacity:.45; filter:grayscale(.6)}
+.card.na .item, .card.na .sec-note{pointer-events:none}
+.na-toggle{padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink-dim); font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap}
+.na-toggle.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.section-head{cursor:pointer;touch-action:manipulation}
+.section-head h2{display:flex; align-items:center; gap:7px}
+.chev{display:inline-block; transition:transform .18s; flex-shrink:0; color:var(--ink-dim)}
+.chev.collapsed{transform:rotate(-90deg)}
+.card.collapsed-body{display:none}
+.drawsummary{font-size:12.5px; color:var(--ink-dim); margin:2px 0 16px}
+.drawsummary b{color:var(--ink)}
+.tabbar .tab{flex:1}
+</style>
+
+<div class="app">
+<header class="top">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c3 4 6 7.5 6 11a6 6 0 1 1-12 0c0-3.5 3-7 6-11z"/></svg></div>
+    <div><h1 id="pageTitle">New Round</h1><div class="sub">Environmental &amp; IPC Audit</div></div>
+  </div>
+  <button class="linklike" id="newBtn" hidden>+ New</button>
+</header>
+
+<main>
+  <section class="screen active" id="screen-new"></section>
+  <section class="screen" id="screen-history"></section>
+  <section class="screen" id="screen-insights"></section>
+  <section class="screen" id="screen-export"></section>
+</main>
+</div>
+
+<div class="tabbar">
+  <button type="button" class="tab active" data-tab="new"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New</button>
+  <button type="button" class="tab" data-tab="history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-7 3L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></svg>History</button>
+  <button type="button" class="tab" data-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V10M11 19V5M18 19v-7"/></svg>Insights</button>
+  <button type="button" class="tab" data-tab="export"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Export</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===================== Checklist model =====================
+   Source documents merged (duplicate checks collapsed into one item, shown
+   under whichever audit types actually check it):
+   1. IPC Surveillance Checklist — Patient Point of Care (bedside, per patient)
+   2. IPC Surveillance Checklist — Common Areas (IP units / OPD / ED)
+   3. Medication Room Checklist (per shift, Day/Night)
+   4. Environment of Care weekly round
+*/
+const AUDIT_TYPES = [
+  { id:'poc', label:'Point-of-Care' },
+  { id:'common', label:'Common Area' },
+  { id:'medroom', label:'Medication Room' },
+  { id:'eoc', label:'Environment of Care' }
+];
+// Sections whose applicability for a POC round depends on what lines/precautions the
+// patient actually has — default OFF (not applicable) until the auditor turns them on,
+// unlike the always-on sections above them.
+const CONDITIONAL_SECTIONS = ['H','I','J','K'];
+
+const CHECKLIST = [
+  { id:'A', title:'Hand Hygiene Facilities & Technique', applies:['poc','common','medroom','eoc'], items:[
+    {id:'A1', text:'Functioning sinks with soap and paper towels are readily accessible'},
+    {id:'A2', text:'Sink area is clean and dry — free of debris, rust, mold, drips or leaks, nothing stored underneath'},
+    {id:'A3', text:'Alcohol-based hand sanitizer dispensers are accessible, clean, filled, functioning and not expired'},
+    {id:'A4', text:'Signage promoting correct hand hygiene technique is displayed', only:['common']},
+    {id:'A5', text:'Staff observed performing the 5 moments of hand hygiene / correct technique', only:['poc','eoc']}
+  ]},
+  { id:'B', title:'Personal Protective Equipment', applies:['poc','common','medroom'], items:[
+    {id:'B1', text:'PPE (gloves, gowns, masks, eye protection, respirators in multiple sizes) is readily available at point of use'},
+    {id:'B2', text:'Staff observed using PPE correctly as indicated for the task or isolation type', only:['poc','common']}
+  ]},
+  { id:'C', title:'Sharps & Needlestick Safety', applies:['poc','common','medroom','eoc'], items:[
+    {id:'C1', text:'Sharps containers are available, properly secured and not overfilled (¾ full or 2 months, whichever comes first)'},
+    {id:'C2', text:'Sharps containers are positioned correctly (52"–56" from the floor) and used only for sharps', only:['common','medroom']},
+    {id:'C3', text:'Needles and other sharps are disposed of immediately into the sharps container after use'},
+    {id:'C4', text:'Sharps safety poster/signage is displayed', only:['medroom']}
+  ]},
+  { id:'D', title:'Waste, Linen & Spill Management', applies:['poc','common','eoc'], items:[
+    {id:'D1', text:'Trash / biohazard bins are color-coded, lids closed, and not overfilled'},
+    {id:'D2', text:'Clinical waste is properly segregated, handled, stored and disposed of per policy'},
+    {id:'D3', text:'Soiled-linen hampers are labeled/color-coded and not overfilled; clean linen is stored separately'},
+    {id:'D4', text:'Spill kits with contents are available for biohazard and chemical spills', only:['common','eoc']}
+  ]},
+  { id:'E', title:'Patient Care Zone & Housekeeping', applies:['poc','eoc'], items:[
+    {id:'E1', text:'Patient care zone is free of clutter and visible contamination (blood, body fluids, contaminated equipment)'},
+    {id:'E2', text:'Privacy curtains are free of visible dirt and changed per policy', only:['poc']},
+    {id:'E3', text:'Patient care equipment is cleaned/disinfected between patient use'},
+    {id:'E4', text:'Nursing station / reception and other surfaces are clean, tidy, and wiped at the start of every shift', only:['eoc']},
+    {id:'E5', text:'Files and supplies are kept tidy and organized in one place', only:['eoc']},
+    {id:'E6', text:'Isolation signage/tags are placed on doors for isolated patients, matching documentation'},
+    {id:'E7', text:'Department meets the general standard of environmental sanitation', only:['eoc']}
+  ]},
+  { id:'F', title:'Medication Storage & Preparation Area', applies:['medroom','common','eoc'], items:[
+    {id:'F1', text:'Medication room/counter is kept locked with access controlled', only:['eoc']},
+    {id:'F2', text:'Medication preparation counter is clean, disinfected and free of cracks'},
+    {id:'F3', text:'No medication spills, used cups, syringes or wrappers are left on the counter'},
+    {id:'F4', text:'No food or drink is present in the medication preparation area'},
+    {id:'F5', text:'Storage cabinets and supplies are organized and labeled, with no expired items'},
+    {id:'F6', text:'Opened multi-dose vials and single-dose containers are dated and within the beyond-use / expiration period', only:['medroom','common']},
+    {id:'F7', text:'Medications are prepared in a clean area free of contamination'},
+    {id:'F8', text:'Medical consumables are not mixed with office supplies', only:['eoc']},
+    {id:'F9', text:'Each service room is dedicated only to its specific service', only:['eoc']}
+  ]},
+  { id:'G', title:'Medication Refrigerators & Freezers', applies:['medroom','common','eoc'], items:[
+    {id:'G1', text:'Thermometer is present and in good working condition'},
+    {id:'G2', text:'Temperature is monitored and logged, between 2–8°C'},
+    {id:'G3', text:'Items inside are labeled and dated'},
+    {id:'G4', text:'Door handle is clean and gaskets are free of mold'},
+    {id:'G5', text:'No food or drink is stored inside'}
+  ]},
+  { id:'H', title:'Central Venous Catheter Care', sub:'Toggle on only if the observed patient has a CVC', applies:['poc'], items:[
+    {id:'H1', text:'Dressing is intact over the insertion site (including CHG dressings)'},
+    {id:'H2', text:'Dressing is dated and timed per policy'},
+    {id:'H3', text:'Catheter is secured to reduce movement or tension'},
+    {id:'H4', text:'Administration tubing sets are labeled with start date/time and used within range'},
+    {id:'H5', text:'All inactive ports are capped per policy'}
+  ]},
+  { id:'I', title:'Urinary Catheter Care', sub:'Toggle on only if the observed patient has a urinary catheter', applies:['poc'], items:[
+    {id:'I1', text:'Catheter is properly secured to the patient'},
+    {id:'I2', text:'Flow from the catheter into the bag is unobstructed'},
+    {id:'I3', text:'Collection bag is kept below the level of the bladder'},
+    {id:'I4', text:'Bag and tubing are kept off the floor'}
+  ]},
+  { id:'J', title:'Ventilator Care', sub:'Toggle on only if the observed patient is ventilated', applies:['poc'], items:[
+    {id:'J1', text:'Head of the bed is elevated more than 30 degrees'},
+    {id:'J2', text:'Ventilator tubing is free of excessive condensation'},
+    {id:'J3', text:'Supplies for oral care are readily available'}
+  ]},
+  { id:'K', title:'Transmission-Based Isolation', sub:'Toggle on only if the observed patient is in isolation', applies:['poc'], items:[
+    {id:'K1', text:'Isolation sign is displayed at the room entrance'},
+    {id:'K2', text:'Door to an airborne isolation room is kept closed; negative pressure confirmed where applicable'},
+    {id:'K3', text:'PPE appropriate to the isolation type is available outside the room'},
+    {id:'K4', text:'Dedicated patient equipment is used, or disinfected between patients if not'},
+    {id:'K5', text:'Isolation status in the EMR matches what is observed, with no mismatch'}
+  ]},
+  { id:'L', title:'Point-of-Care Testing (POCT) Devices', applies:['common'], items:[
+    {id:'L1', text:'POCT devices are disinfected after each use per manufacturer instructions'},
+    {id:'L2', text:'A new single-use auto-disabling lancing device is used for each patient'},
+    {id:'L3', text:'POCT device is visibly clean'}
+  ]},
+  { id:'M', title:'Clean / Dirty Utility Rooms', applies:['common'], items:[
+    {id:'M1', text:'"Dirty" and "clean" areas are kept separate, with no cross-storage'},
+    {id:'M2', text:'PPE supplies (gloves, gowns, eye/face protection) are readily available in the utility room'}
+  ]},
+  { id:'N', title:'Eye Wash Stations', applies:['common'], items:[
+    {id:'N1', text:'Staff are aware of the eyewash station location'},
+    {id:'N2', text:'Eyewash station maintenance (flushing, temperature validation) is documented'}
+  ]},
+  { id:'O', title:'Reprocessing: Cleaning, Disinfection & Sterilization', applies:['common'], items:[
+    {id:'O1', text:'Opened liquid chemical containers are labeled with the open date and use-by date'},
+    {id:'O2', text:'Safety data sheets (SDS) are available for chemicals used in the area'},
+    {id:'O3', text:'Test-strip quality control / germicide potency testing records are available'},
+    {id:'O4', text:'Instrument instructions for use (IFUs) are readily available for reprocessed equipment'},
+    {id:'O5', text:'Disinfected instruments/scopes are stored to protect them from damage and contamination'},
+    {id:'O6', text:'Sterile items are stored intact and undamaged, within required clearances and expiration date'}
+  ]},
+  { id:'P', title:'Reusable Equipment Cleaning & Tagging', sub:'Dressing trolleys, IV poles, pumps, mobility equipment', applies:['eoc'], items:[
+    {id:'P1', text:'Dressing trolleys are cleaned/disinfected after each use and tagged when idle'},
+    {id:'P2', text:'IV poles are cleaned/disinfected after each use and tagged when idle'},
+    {id:'P3', text:'IV infusion pumps / perfusers / glucometers are cleaned/disinfected after each use and tagged when idle'},
+    {id:'P4', text:'Mobility equipment (walking frames, wheelchairs) is cleaned/disinfected after each use and tagged when idle'}
+  ]},
+  { id:'Q', title:'Visitor Area / Waiting Room', applies:['common'], items:[
+    {id:'Q1', text:'Hand hygiene supplies are accessible to visitors in the waiting area'},
+    {id:'Q2', text:'Face masks and trash receptacles are available to visitors'},
+    {id:'Q3', text:'Signage instructs visitors with respiratory symptoms to alert staff'}
+  ]}
+];
+const ANSWERS = ['Yes','No','N/O','N/A'];
+const SCORED_ITEMS = CHECKLIST.flatMap(s=>s.items);
+const TOTAL_SCORED = SCORED_ITEMS.length;
+
+function itemApplies(it, auditType){ return !it.only || it.only.includes(auditType); }
+function sectionVisible(sec, auditType){ return sec.applies.includes(auditType); }
+function sectionApplies(sec, o){
+  if(!o) return false;
+  if(!sectionVisible(sec, o.auditType)) return false;
+  if(CONDITIONAL_SECTIONS.includes(sec.id)) return !!(o.activeSections && o.activeSections[sec.id]);
+  return true;
+}
+function auditLabel(o){
+  const t = AUDIT_TYPES.find(t=>t.id===o.auditType);
+  return t ? t.label : '—';
+}
+function pctOf(r){ return (r.yes+r.no) ? r.yes/(r.yes+r.no) : null; }
+function newRow(applicable){ return {yes:0,no:0,nobs:0,na:0,open:0,applicable}; }
+function scoreObs(o){
+  const tot=newRow(true); tot.sections={};
+  for(const s of CHECKLIST){
+    const app=sectionApplies(s,o);
+    const r=newRow(app);
+    for(const it of s.items){
+      if(!itemApplies(it, o.auditType)) continue;
+      const a = app ? ((o.answers||{})[it.id]||'') : 'N/A';
+      if(a==='Yes') r.yes++; else if(a==='No') r.no++;
+      else if(a==='N/O') r.nobs++; else if(a==='N/A') r.na++; else r.open++;
+    }
+    r.pct=pctOf(r);
+    tot.sections[s.id]=r;
+    for(const k of ['yes','no','nobs','na','open']) tot[k]+= app?r[k]:0;
+  }
+  tot.pct=pctOf(tot);
+  return tot;
+}
+function scoreOverall(list){
+  let yes=0,no=0;
+  for(const o of list){ const s=scoreObs(o); yes+=s.yes; no+=s.no; }
+  return (yes+no) ? yes/(yes+no) : null;
+}
+function sortObs(list){
+  return [...list].sort((a,b)=>
+    (a.date||'').localeCompare(b.date||'') ||
+    (a.createdAt||'').localeCompare(b.createdAt||''));
+}
+function colLetter(n){ let s=''; while(n>0){ const m=(n-1)%26; s=String.fromCharCode(65+m)+s; n=Math.floor((n-1)/26);} return s; }
+
+/* ExcelJS is only needed for the Export tab's download button, loaded on demand. */
+let _exceljsLoad = null;
+function loadExcelJS(){
+  if(window.ExcelJS) return Promise.resolve();
+  if(_exceljsLoad) return _exceljsLoad;
+  _exceljsLoad = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+    s.onload = ()=>resolve();
+    s.onerror = ()=>{ _exceljsLoad = null; reject(new Error('exceljs failed to load')); };
+    document.head.appendChild(s);
+  });
+  return _exceljsLoad;
+}
+
+/* ===================== Excel workbook builder ===================== */
+function buildWorkbook(obsInput, target){
+  const obsList = sortObs(obsInput);
+  target = typeof target==='number' ? target : 0.9;
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Environmental & IPC Audit app';
+  wb.calcProperties.fullCalcOnLoad = true;
+  const N = Math.max(30, obsList.length+10);
+  const C0=4, CL=C0+N-1, LC=colLetter(CL);
+  const fill = argb=>({type:'pattern',pattern:'solid',fgColor:{argb}});
+  const F = {title:'FF0F4C5C',sec:'FFD9E7EA',sub:'FFEFF5F6',input:'FFFFF7D6',auto:'FFE3EEF8',head:'FF244B57',note:'FFFAFAF7'};
+  const thin={style:'thin',color:{argb:'FFC9D3D6'}};
+  const border={top:thin,left:thin,bottom:thin,right:thin};
+
+  const ws = wb.addWorksheet('Audit Data');
+  ws.getColumn(1).width=7; ws.getColumn(2).width=62; ws.getColumn(3).width=15;
+  for(let c=C0;c<=CL;c++) ws.getColumn(c).width=17;
+
+  const cnt=(rng,v)=>`COUNTIF(${rng},"${v}")`;
+  const pctF=rng=>`IF((${cnt(rng,'Yes')}+${cnt(rng,'No')})=0,"",${cnt(rng,'Yes')}/(${cnt(rng,'Yes')}+${cnt(rng,'No')}))`;
+  const ptsF=rng=>`IF((${cnt(rng,'Yes')}+${cnt(rng,'No')})=0,"",${cnt(rng,'Yes')}&" / "&(${cnt(rng,'Yes')}+${cnt(rng,'No')}))`;
+  const style=(cell,o)=>{ Object.assign(cell,o); };
+
+  let r=1;
+  ws.mergeCells(`A1:${LC}1`);
+  style(ws.getCell('A1'),{value:'ENVIRONMENTAL & IPC ROUNDS — Audit Score Sheet',font:{bold:true,size:15,color:{argb:'FFFFFFFF'}},fill:fill(F.title),alignment:{vertical:'middle'}});
+  ws.getRow(1).height=28;
+  ws.mergeCells(`A2:${LC}2`);
+  style(ws.getCell('A2'),{value:'Choose Yes / No / N/O / N/A in the yellow cells (▼ dropdown). Score = Yes ÷ (Yes + No): every Yes is 1 point, a No scores 0, and N/A or N/O items are left out of the total. One observation per column; only the sections relevant to the audit type picked for that column are scored — the rest are filled N/A.',alignment:{wrapText:true,vertical:'top'},font:{size:10,italic:true}});
+  ws.getRow(2).height=44;
+
+  r=4;
+  const hdr=ws.getRow(r);
+  hdr.getCell(2).value='Observation'; hdr.getCell(3).value='ALL OBSERVATIONS';
+  for(let i=0;i<N;i++) hdr.getCell(C0+i).value='Observation '+(i+1);
+  for(let c=1;c<=CL;c++) style(hdr.getCell(c),{font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center',vertical:'middle',wrapText:true}});
+  r++;
+
+  const details=[
+    ['Date', o=>o.date?(()=>{const [y,m,d]=o.date.split('-').map(Number); return new Date(Date.UTC(y,m-1,d));})():null,'dd-mmm-yyyy'],
+    ['Audit type', o=>auditLabel(o)==='—'?null:auditLabel(o)],
+    ['Department / Unit', o=>o.unit||null],
+    ['Location', o=>o.location||null],
+    ['Shift', o=>o.shift||null],
+    ['Observer / Auditor', o=>o.observer||null],
+    ['Checked by (Employee No.)', o=>o.checkedBy||null]
+  ];
+  const detailRow={};
+  for(const [label,get,fmt] of details){
+    const row=ws.getRow(r); detailRow[label]=r;
+    style(row.getCell(2),{value:label+'  →',font:{bold:true}});
+    row.getCell(3).value='—';
+    for(let i=0;i<N;i++){
+      const cell=row.getCell(C0+i); const v=obsList[i]?get(obsList[i]):null;
+      if(v!==null&&v!==undefined) cell.value=v;
+      if(fmt) cell.numFmt=fmt;
+      cell.fill=fill(F.input); cell.border=border; cell.alignment={wrapText:true,vertical:'top'};
+    }
+    r++;
+  }
+  const hrow=ws.getRow(r);
+  hrow.getCell(1).value='#'; hrow.getCell(2).value='Checklist Item'; hrow.getCell(3).value='Score %';
+  for(let i=0;i<N;i++) hrow.getCell(C0+i).value='▼ Select answer';
+  for(let c=1;c<=CL;c++) style(hrow.getCell(c),{font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center'}});
+  r++;
+
+  const firstItemRow=r+1;
+  const scoreRows=[]; const sectionScoreRow={}; const cPctRanges=[];
+  for(const s of CHECKLIST){
+    const sr=ws.getRow(r);
+    sr.getCell(1).value=s.id; sr.getCell(2).value=s.title;
+    for(let c=1;c<=CL;c++) style(sr.getCell(c),{font:{bold:true,size:12},fill:fill(F.sec)});
+    r++;
+    if(s.sub){
+      const row=ws.getRow(r); row.getCell(2).value=s.sub;
+      for(let c=1;c<=CL;c++) style(row.getCell(c),{font:{italic:true,size:10},fill:fill(F.sub)});
+      r++;
+    }
+    const secStart=r;
+    for(const it of s.items){
+      const row=ws.getRow(r);
+      row.getCell(1).value=it.id;
+      style(row.getCell(2),{value: it.text, alignment:{wrapText:true,vertical:'top'}});
+      style(row.getCell(3),{value:{formula:pctF(`D${r}:${LC}${r}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'}});
+      for(let i=0;i<N;i++){
+        const cell=row.getCell(C0+i); const o=obsList[i];
+        if(o){
+          const show = itemApplies(it,o.auditType) && sectionApplies(s,o);
+          cell.value = show ? ((o.answers||{})[it.id]||null) : 'N/A';
+        }
+        cell.fill=fill(F.input); cell.border=border; cell.alignment={horizontal:'center'};
+        cell.dataValidation={type:'list',allowBlank:true,formulae:['"Yes,No,N/O,N/A"']};
+      }
+      r++;
+    }
+    const secEnd=r-1;
+    cPctRanges.push(`C${secStart}:C${secEnd}`);
+    const nr=ws.getRow(r);
+    style(nr.getCell(2),{value:'Observation — if "No" selected, clarify:',font:{italic:true}});
+    nr.getCell(3).value='—';
+    for(let i=0;i<N;i++){
+      const cell=nr.getCell(C0+i); const o=obsList[i];
+      const v=o && (o.notes||{})[s.id];
+      if(v) cell.value=v;
+      cell.fill=fill(F.note); cell.border=border; cell.alignment={wrapText:true,vertical:'top'};
+    }
+    r++;
+    const pr=ws.getRow(r);
+    style(pr.getCell(2),{value:`Section ${s.id} points / possible`,font:{bold:true}});
+    style(pr.getCell(3),{value:{formula:ptsF(`D${secStart}:${LC}${secEnd}`)},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}});
+    for(let i=0;i<N;i++){ const L=colLetter(C0+i); style(pr.getCell(C0+i),{value:{formula:ptsF(`${L}${secStart}:${L}${secEnd}`)},fill:fill(F.auto),alignment:{horizontal:'center'}}); }
+    r++;
+    const pc=ws.getRow(r);
+    style(pc.getCell(2),{value:`Section ${s.id} score %`,font:{bold:true}});
+    style(pc.getCell(3),{value:{formula:pctF(`D${secStart}:${LC}${secEnd}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}});
+    for(let i=0;i<N;i++){ const L=colLetter(C0+i); style(pc.getCell(C0+i),{value:{formula:pctF(`${L}${secStart}:${L}${secEnd}`)},numFmt:'0%',fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true}}); }
+    scoreRows.push(r); sectionScoreRow[s.id]=r;
+    r++;
+  }
+  const lastItemRow=r-1;
+
+  const gr=ws.getRow(r);
+  gr.getCell(1).value='★'; gr.getCell(2).value='Observer Comments & Follow-Up  (not scored)';
+  for(let c=1;c<=CL;c++) style(gr.getCell(c),{font:{bold:true,size:12},fill:fill(F.sec)});
+  r++;
+  const ncRow=ws.getRow(r);
+  style(ncRow.getCell(2),{value:'Additional observations / corrective actions',alignment:{wrapText:true}});
+  ncRow.getCell(3).value='—';
+  for(let i=0;i<N;i++){ const cell=ncRow.getCell(C0+i); const o=obsList[i]; if(o&&o.nonCompliance) cell.value=o.nonCompliance; cell.fill=fill(F.note); cell.border=border; cell.alignment={wrapText:true,vertical:'top'}; }
+  r+=2;
+
+  const orow=ws.getRow(r);
+  orow.getCell(1).value='★'; orow.getCell(2).value='OBSERVATION SCORE (calculated automatically from the answers)';
+  for(let c=1;c<=CL;c++) style(orow.getCell(c),{font:{bold:true,size:12,color:{argb:'FFFFFFFF'}},fill:fill(F.title)});
+  r++;
+  const targetRow=r+6;
+  const T=`$C$${targetRow}`;
+  const rng=L=>`${L}${firstItemRow}:${L}${lastItemRow}`;
+  const allRng=`D${firstItemRow}:${LC}${lastItemRow}`;
+  const overallPctRow=r+1;
+  const lines=[
+    ['Points / possible  (Yes / Yes + No)', L=>ptsF(rng(L)), ptsF(allRng), null],
+    ['SCORE %', L=>pctF(rng(L)), pctF(allRng), '0%'],
+    ['Result vs target', L=>`IF(${L}${overallPctRow}="","",IF(${L}${overallPctRow}>=${T},"Target met","Below target"))`, `IF(C${overallPctRow}="","",IF(C${overallPctRow}>=${T},"Target met","Below target"))`, null],
+    ['Items answered N/A or N/O (left out of the total)', L=>`IF(COUNTA(${L}${firstItemRow}:${L}${lastItemRow})=0,"",${cnt(rng(L),'N/A')}+${cnt(rng(L),'N/O')})`, `${cnt(allRng,'N/A')}+${cnt(allRng,'N/O')}`, null],
+    ['Items not yet answered', L=>`IF(COUNTA(${L}${firstItemRow}:${L}${lastItemRow})=0,"",${TOTAL_SCORED}-(${cnt(rng(L),'Yes')}+${cnt(rng(L),'No')}+${cnt(rng(L),'N/A')}+${cnt(rng(L),'N/O')}))`, null, null]
+  ];
+  for(const [label,f,cf,fmt] of lines){
+    const row=ws.getRow(r);
+    style(row.getCell(2),{value:label,font:{bold:true}});
+    if(cf) style(row.getCell(3),{value:{formula:cf},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true},numFmt:fmt||'General'});
+    for(let i=0;i<N;i++) style(row.getCell(C0+i),{value:{formula:f(colLetter(C0+i))},fill:fill(F.auto),alignment:{horizontal:'center'},font:{bold:true},numFmt:fmt||'General'});
+    r++;
+  }
+  r++;
+  const tr=ws.getRow(targetRow);
+  style(tr.getCell(2),{value:'Compliance target (edit if needed)',font:{bold:true}});
+  style(tr.getCell(3),{value:target,numFmt:'0%',fill:fill(F.input),font:{bold:true},border});
+  ws.mergeCells(`D${targetRow}:L${targetRow}`);
+  style(tr.getCell(4),{value:'Green = at or above target, red = below.',font:{italic:true,size:10}});
+  ws.mergeCells(`A${targetRow+2}:L${targetRow+2}`);
+  style(ws.getCell(`A${targetRow+2}`),{value:'Yellow = fill in · Blue = automatic · Sections that do not apply to the audit type picked for that observation are filled as N/A · "ALL OBSERVATIONS" = every observation combined.',font:{italic:true,size:9},alignment:{wrapText:true}});
+  ws.getRow(targetRow+2).height=30;
+
+  const cf=(ref,rules)=>ws.addConditionalFormatting({ref,rules});
+  const fillDx=(bg,fg)=>({fill:{type:'pattern',pattern:'solid',bgColor:{argb:bg}},font:{color:{argb:fg}}});
+  cf(`D${firstItemRow}:${LC}${lastItemRow}`,[
+    {type:'cellIs',operator:'equal',formulae:['"Yes"'],style:fillDx('FFD4EDDA','FF155724'),priority:1},
+    {type:'cellIs',operator:'equal',formulae:['"No"'],style:fillDx('FFF8D7DA','FF842029'),priority:2},
+    {type:'cellIs',operator:'equal',formulae:['"N/O"'],style:fillDx('FFEDEDED','FF555555'),priority:3},
+    {type:'cellIs',operator:'equal',formulae:['"N/A"'],style:fillDx('FFEDEDED','FF555555'),priority:4}
+  ]);
+  const pctRule=(tl)=>[
+    {type:'expression',formulae:[`AND(ISNUMBER(${tl}),${tl}>=${T})`],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:5},
+    {type:'expression',formulae:[`AND(ISNUMBER(${tl}),${tl}<${T})`],style:fillDx('FFFFC7CE','FF9C0006'),priority:6}
+  ];
+  for(const rr of cPctRanges) cf(rr,pctRule(rr.split(':')[0]));
+  for(const sr of [...scoreRows, overallPctRow]) cf(`C${sr}:${LC}${sr}`,pctRule(`C${sr}`));
+  cf(`C${overallPctRow+1}:${LC}${overallPctRow+1}`,[
+    {type:'cellIs',operator:'equal',formulae:['"Target met"'],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:7},
+    {type:'cellIs',operator:'equal',formulae:['"Below target"'],style:fillDx('FFFFC7CE','FF9C0006'),priority:8}
+  ]);
+  ws.views=[{state:'frozen',xSplit:3,ySplit:4}];
+
+  const sm = wb.addWorksheet('Summary by Date');
+  sm.mergeCells('A1:N1');
+  style(sm.getCell('A1'),{value:'Score Summary by Observation (filled automatically from Audit Data)',font:{bold:true,size:14,color:{argb:'FFFFFFFF'}},fill:fill(F.title)});
+  sm.getRow(1).height=24;
+  const cols=['Obs','Date','Audit type','Unit','Observer', ...CHECKLIST.map(s=>'Sec '+s.id+' %'), 'Points / possible','Overall %','Result'];
+  const widths=[6,13,16,16,16, ...CHECKLIST.map(()=>8), 16,11,14];
+  cols.forEach((h,i)=>{ const c=sm.getRow(3).getCell(i+1); style(c,{value:h,font:{bold:true,color:{argb:'FFFFFFFF'}},fill:fill(F.head),alignment:{horizontal:'center',wrapText:true}}); sm.getColumn(i+1).width=widths[i]; });
+  const AD="'Audit Data'!";
+  const link=(L,row)=>`IF(${AD}${L}${row}="","",${AD}${L}${row})`;
+  const allRowIdx=4;
+  const secColStart=6;
+  const ptsCol=secColStart+CHECKLIST.length;
+  const overallCol=ptsCol+1;
+  const resultCol=overallCol+1;
+  const writeSumRow=(row,L,label)=>{
+    const R=sm.getRow(row);
+    R.getCell(1).value=label;
+    if(L==='C'){ R.getCell(2).value='All'; } else {
+      style(R.getCell(2),{value:{formula:link(L,detailRow['Date'])},numFmt:'dd-mmm-yyyy'});
+      R.getCell(3).value={formula:link(L,detailRow['Audit type'])};
+      R.getCell(4).value={formula:link(L,detailRow['Department / Unit'])};
+      R.getCell(5).value={formula:link(L,detailRow['Observer / Auditor'])};
+    }
+    CHECKLIST.forEach((s,k)=> style(R.getCell(secColStart+k),{value:{formula:`${AD}${L}${sectionScoreRow[s.id]}`},numFmt:'0%',alignment:{horizontal:'center'}}));
+    R.getCell(ptsCol).value={formula:`${AD}${L}${overallPctRow-1}`};
+    style(R.getCell(overallCol),{value:{formula:`${AD}${L}${overallPctRow}`},numFmt:'0%',font:{bold:true},alignment:{horizontal:'center'}});
+    R.getCell(resultCol).value={formula:`${AD}${L}${overallPctRow+1}`};
+    for(let c=1;c<=resultCol;c++) R.getCell(c).border=border;
+  };
+  writeSumRow(allRowIdx,'C','All');
+  for(let c=1;c<=resultCol;c++) sm.getRow(allRowIdx).getCell(c).fill=fill(F.sec);
+  for(let i=0;i<N;i++) writeSumRow(allRowIdx+1+i, colLetter(C0+i), i+1);
+  const smEnd=allRowIdx+N;
+  const T2=`'Audit Data'!${T}`;
+  const secColEndLetter = colLetter(secColStart+CHECKLIST.length-1);
+  sm.addConditionalFormatting({ref:`${colLetter(secColStart)}4:${secColEndLetter}${smEnd}`,rules:pctRule(colLetter(secColStart)+'4').map(x=>({...x,formulae:[x.formulae[0].replace(T,T2)]}))});
+  sm.addConditionalFormatting({ref:`${colLetter(overallCol)}4:${colLetter(overallCol)}${smEnd}`,rules:pctRule(colLetter(overallCol)+'4').map(x=>({...x,formulae:[x.formulae[0].replace(T,T2)]}))});
+  sm.addConditionalFormatting({ref:`${colLetter(resultCol)}4:${colLetter(resultCol)}${smEnd}`,rules:[
+    {type:'cellIs',operator:'equal',formulae:['"Target met"'],style:fillDx('FFC6EFCE','FF0B5D1E'),priority:1},
+    {type:'cellIs',operator:'equal',formulae:['"Below target"'],style:fillDx('FFFFC7CE','FF9C0006'),priority:2}
+  ]});
+  sm.views=[{state:'frozen',ySplit:3}];
+  return wb;
+}
+
+/* ===================== App state & persistence (artifact capability) ===================== */
+let OBS = [];
+let DRAFT = null;
+let TARGET = 0.9;
+let artifactCap = null;
+let canWrite = true;
+let collapsedSections = {};
+
+function uid(){ return 'obs-' + Date.now() + '-' + Math.random().toString(36).slice(2,8); }
+function emptyDraft(){
+  return {
+    id: uid(), date: new Date().toISOString().slice(0,10), auditType:'poc',
+    unit:'', location:'', shift:'', observer:'Violetta', checkedBy:'',
+    activeSections:{}, answers:{}, notes:{}, nonCompliance:'',
+    createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()
+  };
+}
+
+function fmtDate(iso){
+  if(!iso) return '—';
+  const [y,m,d]=iso.split('-'); const dt=new Date(Date.UTC(+y,+m-1,+d));
+  return dt.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+}
+function pctLabel(p){ return p===null||p===undefined ? '—' : Math.round(p*100)+'%'; }
+function pillClass(p){ if(p===null) return 'mid'; return p>=TARGET ? 'good' : (p>=0.6 ? 'mid' : 'bad'); }
+
+function toast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---- doc-rebuild helper for artifact.publish(): regenerate the whole page from state ---- */
+function serializeState(){
+  return { obs: OBS, target: TARGET };
+}
+function currentDocHTML(){
+  const styleEl = document.querySelector('style').outerHTML;
+  const titleEl = document.querySelector('title').outerHTML;
+  const metaEl = document.querySelector('meta[name="claude:viewport-fit-sides"]').outerHTML;
+  const bodyInner = document.body.innerHTML.replace(/<script id="seed-data"[^>]*>[\s\S]*?<\/script>/g, '');
+  const closeTag = '<' + '/script>';
+  const safeJson = JSON.stringify(serializeState()).split('<' + '/script').join('<\\/script');
+  const dataScript = '<script id="seed-data" type="application/json">' + safeJson + closeTag;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">${metaEl}${titleEl}${styleEl}</head><body>${bodyInner}${dataScript}</body></html>`;
+}
+/* ---- Standalone (non-Claude) persistence fallback via localStorage ---- */
+const LOCAL_KEY = 'env-audit-app-state-v1';
+function saveLocal(){
+  try{ localStorage.setItem(LOCAL_KEY, JSON.stringify(serializeState())); }
+  catch(e){ console.error('localStorage save failed', e); toast('Could not save — storage unavailable'); }
+}
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LOCAL_KEY); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
+}
+async function persist(){
+  if(!artifactCap){ saveLocal(); return; }
+  if(!canWrite){ saveLocal(); return; }
+  try{ await artifactCap.publish(currentDocHTML()); }
+  catch(e){
+    if(e && e.code==='conflict'){ /* another view saved; it will reload */ }
+    else if(e && (e.code==='not_granted'||e.code==='not_writer')){ canWrite=false; saveLocal(); }
+    else { saveLocal(); }
+  }
+}
+
+/* ===================== Rendering: New Round screen ===================== */
+function renderNew(){
+  const el = document.getElementById('screen-new');
+  const d = DRAFT;
+  const scored = scoreObs(d);
+  const visibleSections = CHECKLIST.filter(sec=>sectionVisible(sec, d.auditType));
+  const sectionsHTML = visibleSections.map(sec=>{
+    const conditional = CONDITIONAL_SECTIONS.includes(sec.id);
+    const applies = sectionApplies(sec, d);
+    const r = scored.sections[sec.id];
+    const visibleItems = sec.items.filter(it=>itemApplies(it, d.auditType));
+    const itemsHTML = visibleItems.map(it=>{
+      const cur = d.answers[it.id] || '';
+      return `<div class="item">
+        <div class="text"><span class="idtag">${it.id}</span>${it.text}</div>
+        <div class="ans-group" data-item="${it.id}">
+          ${ANSWERS.map(a=>`<label class="ans-btn"><input type="radio" name="ans-${it.id}" value="${a}" ${cur===a?'checked':''}>${a}</label>`).join('')}
+        </div>
+        ${cur==='No' ? `<div class="note-flag"><input type="text" placeholder="Why? (goes in section notes)" data-itemnote="${it.id}" value="${(d.itemNotes&&d.itemNotes[it.id])||''}"></div>` : ''}
+      </div>`;
+    }).join('');
+    const collapsed = !!collapsedSections[sec.id];
+    return `<div class="section-head" data-collapsetoggle="${sec.id}"><h2><span class="chev ${collapsed?'collapsed':''}">▾</span>${sec.id}. ${sec.title}</h2>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${applies ? `<span class="pct" style="background:${r.pct===null?'var(--na-bg)':r.pct>=TARGET?'var(--yes-bg)':'var(--no-bg)'};color:${r.pct===null?'var(--na)':r.pct>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(r.pct)}</span>` : ''}
+          ${conditional ? `<button type="button" class="na-toggle ${applies?'on':''}" data-condtoggle="${sec.id}">${applies ? 'Applicable' : 'Not applicable'}</button>` : ''}
+        </div>
+      </div>
+      ${sec.sub && !collapsed?`<div class="section-sub">${sec.sub}</div>`:''}
+      <div class="card ${applies?'':'na'} ${collapsed?'collapsed-body':''}" data-section="${sec.id}">${itemsHTML}
+        <div class="sec-note"><label>Section ${sec.id} observation notes</label><textarea data-secnote="${sec.id}" placeholder="If any item is No, note what happened...">${d.notes[sec.id]||''}</textarea></div>
+      </div>`;
+  }).join('');
+  const anyOpen = visibleSections.some(s=>!collapsedSections[s.id]);
+  const summaryBar = `<div class="drawsummary" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span>Round type: <b>${auditLabel(d)}</b>${d.auditType==='poc' ? ' — toggle Central Line / Urinary Catheter / Ventilator / Isolation on only when the patient has them.' : ''}</span>
+      <button class="linklike" id="collapseAllBtn" style="flex-shrink:0">${anyOpen?'Collapse all':'Expand all'}</button>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:12px;font-family:inherit">Round Type</h3>
+      <div class="chip-group">
+        ${AUDIT_TYPES.map(t=>`<button type="button" class="chip ${d.auditType===t.id?'on':''}" data-audittype="${t.id}">${t.label}</button>`).join('')}
+      </div>
+    </div>
+    ${summaryBar}
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:12px;font-family:inherit">Round Details</h3>
+      <div class="row2">
+        <div class="field"><label>Date</label><input type="date" id="f_date" value="${d.date}"></div>
+        <div class="field"><label>Department / Unit</label><input type="text" id="f_unit" value="${d.unit}" placeholder="e.g. Dialysis, ED, Ward 3"></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Location${d.auditType==='poc'?' / Bed':''}</label><input type="text" id="f_location" value="${d.location}"></div>
+        <div class="field"><label>Shift</label>
+          <div class="chip-group">
+            <button type="button" class="chip ${d.shift==='Day'?'on':''}" data-shift="Day">Day</button>
+            <button type="button" class="chip ${d.shift==='Night'?'on':''}" data-shift="Night">Night</button>
+          </div>
+        </div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Observer / Auditor</label><input type="text" id="f_observer" value="${d.observer}"></div>
+        <div class="field"><label>Checked by (Employee No.)</label><input type="text" id="f_checkedBy" value="${d.checkedBy||''}"></div>
+      </div>
+    </div>
+    ${sectionsHTML}
+    <div class="card">
+      <div class="field"><label>Additional observations / corrective actions</label><textarea id="f_noncompliance">${d.nonCompliance}</textarea></div>
+    </div>
+    <div class="save-bar"><button class="btn" id="saveBtn">Save Round</button></div>
+  `;
+
+  el.querySelectorAll('[data-audittype]').forEach(c=>c.onclick=()=>{
+    d.auditType = c.dataset.audittype;
+    renderNew();
+  });
+  el.querySelectorAll('[data-shift]').forEach(c=>c.onclick=()=>{ d.shift = d.shift===c.dataset.shift ? '' : c.dataset.shift; renderNew(); });
+  el.querySelectorAll('[data-condtoggle]').forEach(t=>t.onclick=(ev)=>{
+    ev.stopPropagation();
+    const id=t.dataset.condtoggle;
+    d.activeSections = d.activeSections||{};
+    d.activeSections[id] = !d.activeSections[id];
+    collapsedSections[id] = !d.activeSections[id];
+    renderNew();
+  });
+  el.querySelectorAll('[data-collapsetoggle]').forEach(h=>h.onclick=(ev)=>{
+    if(ev.target.closest('[data-condtoggle]')) return;
+    const id=h.dataset.collapsetoggle;
+    collapsedSections[id] = !collapsedSections[id];
+    renderNew();
+  });
+  const collapseAllBtn = document.getElementById('collapseAllBtn');
+  if(collapseAllBtn) collapseAllBtn.onclick=()=>{
+    const anyOpen = visibleSections.some(s=>!collapsedSections[s.id]);
+    visibleSections.forEach(s=>{ collapsedSections[s.id] = anyOpen; });
+    renderNew();
+  };
+  el.querySelectorAll('[data-item]').forEach(group=>{
+    group.querySelectorAll('input[type=radio]').forEach(inp=>{
+      inp.addEventListener('click', ()=>{
+        const itemId=group.dataset.item;
+        if(d.answers[itemId] === inp.value){
+          inp.checked = false;
+          d.answers[itemId] = '';
+          renderNew();
+        }
+      });
+      inp.addEventListener('change', ()=>{
+        const itemId=group.dataset.item;
+        d.answers[itemId] = inp.value;
+        renderNew();
+      });
+    });
+  });
+  el.querySelectorAll('[data-itemnote]').forEach(inp=>inp.oninput=()=>{
+    d.itemNotes = d.itemNotes||{}; d.itemNotes[inp.dataset.itemnote]=inp.value;
+  });
+  el.querySelectorAll('[data-secnote]').forEach(ta=>ta.oninput=()=>{ d.notes[ta.dataset.secnote]=ta.value; });
+  const fmap = {f_date:'date',f_unit:'unit',f_location:'location',f_observer:'observer',f_checkedBy:'checkedBy',f_noncompliance:'nonCompliance'};
+  Object.entries(fmap).forEach(([domId,key])=>{ const node=document.getElementById(domId); if(node) node.oninput=()=>{ d[key]=node.value; }; });
+
+  const saveBtn=document.getElementById('saveBtn');
+  if(saveBtn) saveBtn.onclick=async()=>{
+    d.updatedAt=new Date().toISOString();
+    const idx=OBS.findIndex(o=>o.id===d.id);
+    if(idx>=0) OBS[idx]=d; else OBS.push(d);
+    await persist();
+    toast('Saved');
+    DRAFT=emptyDraft();
+    document.getElementById('pageTitle').textContent='New Round';
+    document.getElementById('newBtn').hidden=true;
+    renderNew();
+    setTab('history');
+  };
+}
+
+/* ===================== History screen ===================== */
+function renderHistory(){
+  const el = document.getElementById('screen-history');
+  const list = sortObs(OBS).reverse();
+  if(!list.length){
+    el.innerHTML = `<div class="empty"><h3>No rounds yet</h3><p>Rounds you save on the New tab will show up here, scored the same way as the paper checklists.</p></div>`;
+    return;
+  }
+  const overall = scoreOverall(OBS);
+  const secAvg = CHECKLIST.map(s=>{
+    const vals = OBS.map(o=>scoreObs(o).sections[s.id]).filter(r=>r.applicable && r.pct!==null);
+    const avg = vals.length ? vals.reduce((a,b)=>a+b.pct,0)/vals.length : null;
+    return {id:s.id, pct:avg};
+  }).filter(s=>s.pct!==null);
+  const byType = AUDIT_TYPES.map(t=>{
+    const obsIn = OBS.filter(o=>o.auditType===t.id);
+    return {label:t.label, n:obsIn.length, pct:scoreOverall(obsIn)};
+  });
+  el.innerHTML = `
+    <div class="statgrid" style="margin-bottom:14px">
+      <div class="stat"><div class="n">${list.length}</div><div class="l">Rounds</div></div>
+      <div class="stat"><div class="n" style="color:${overall===null?'inherit':overall>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(overall)}</div><div class="l">Overall score</div></div>
+      ${byType.map(t=>`<div class="stat"><div class="n" style="color:${t.pct===null?'inherit':t.pct>=TARGET?'var(--yes)':'var(--no)'}">${pctLabel(t.pct)}</div><div class="l">${t.label} (${t.n})</div></div>`).join('')}
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:8px;font-family:inherit">Average by section</h3>
+      ${secAvg.map(s=>`<div class="secbar-row"><div class="lab">${s.id}</div><div class="track"><div style="width:${s.pct===null?0:Math.round(s.pct*100)}%;background:${s.pct===null?'var(--na)':s.pct>=TARGET?'var(--yes)':'var(--no)'}"></div></div><div class="val">${pctLabel(s.pct)}</div></div>`).join('')}
+    </div>
+    <div class="card">
+      ${list.map(o=>{
+        const sc=scoreObs(o);
+        return `<div class="obs-row" data-obsid="${o.id}">
+          <div class="meta"><div class="d">${fmtDate(o.date)} · ${auditLabel(o)}</div><div class="s">${o.unit||'—'}${o.location?' · '+o.location:''} · ${o.observer||'—'}</div></div>
+          <span class="pill ${pillClass(sc.pct)}">${pctLabel(sc.pct)}</span>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  el.querySelectorAll('.obs-row').forEach(row=>row.onclick=()=>{
+    const o = OBS.find(x=>x.id===row.dataset.obsid);
+    if(!o) return;
+    DRAFT = o;
+    document.getElementById('pageTitle').textContent='Edit Round';
+    document.getElementById('newBtn').hidden=false;
+    renderNew();
+    setTab('new');
+  });
+}
+
+/* ===================== Insights screen ===================== */
+function monthKey(o){ return (o.date||'').slice(0,7) || 'unknown'; }
+function monthShortLabel(key){
+  if(key==='unknown') return '—';
+  const [y,m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleDateString(undefined,{month:'short',year:'2-digit'});
+}
+function monthFullLabel(key){
+  if(key==='unknown') return 'Unknown month';
+  const [y,m] = key.split('-').map(Number);
+  return new Date(Date.UTC(y,m-1,1)).toLocaleDateString(undefined,{month:'long',year:'numeric'});
+}
+function computeMonthly(list){
+  const groups = {};
+  for(const o of list){ const k=monthKey(o); (groups[k]=groups[k]||[]).push(o); }
+  return Object.keys(groups).sort().map(k=>{
+    const obsIn = groups[k];
+    let yes=0,no=0;
+    for(const o of obsIn){ const sc = scoreObs(o); yes+=sc.yes; no+=sc.no; }
+    return { key:k, label: monthFullLabel(k), shortLabel: monthShortLabel(k), n: obsIn.length, pct: (yes+no)?yes/(yes+no):null };
+  });
+}
+function renderMonthlyChart(rows){
+  const plotRows = rows.filter(r=>r.pct!==null);
+  if(!plotRows.length) return '';
+  const W=600,H=200,padL=38,padR=14,padT=22,padB=34;
+  const innerW = W-padL-padR, innerH = H-padT-padB;
+  const n = plotRows.length;
+  const gap = n>1 ? 14 : 0;
+  const barW = Math.min(64, (innerW - gap*(n-1))/n);
+  const rowStartX = padL + Math.max(0, (innerW - (n*barW + gap*(n-1)))/2);
+  const xCenter = i => rowStartX + i*(barW+gap) + barW/2;
+  const yOf = v => padT + (1-v)*innerH;
+  const baseY = padT+innerH;
+  const targetY = yOf(Math.min(Math.max(TARGET,0),1));
+  const bars = plotRows.map((r,i)=>{
+    const bx = xCenter(i)-barW/2, by = yOf(r.pct), bh = baseY-by;
+    const color = r.pct>=TARGET ? 'var(--yes)' : 'var(--no)';
+    return `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(bh,1).toFixed(1)}" rx="4" fill="${color}"><title>${r.label}: ${pctLabel(r.pct)} (${r.n} round${r.n===1?'':'s'})</title></rect>
+     <text x="${xCenter(i).toFixed(1)}" y="${(by-7).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="var(--ink)">${pctLabel(r.pct)}</text>`;
+  }).join('');
+  const trendLine = n>=2 ? `<polyline points="${plotRows.map((r,i)=>`${xCenter(i).toFixed(1)},${(yOf(r.pct)-13).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>` : '';
+  const labels = plotRows.map((r,i)=>`<text x="${xCenter(i).toFixed(1)}" y="${H-10}" text-anchor="middle" font-size="9" fill="var(--ink-dim)">${r.shortLabel}</text>`).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Overall compliance score by month, target ${pctLabel(TARGET)}">
+    <line x1="${padL}" x2="${W-padR}" y1="${baseY}" y2="${baseY}" stroke="var(--border)" stroke-width="1"/>
+    <line x1="${padL}" x2="${W-padR}" y1="${targetY.toFixed(1)}" y2="${targetY.toFixed(1)}" stroke="var(--na)" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="${padL-6}" y="${(targetY+3).toFixed(1)}" text-anchor="end" font-size="9" fill="var(--ink-dim)">${pctLabel(TARGET)}</text>
+    ${trendLine}
+    ${bars}
+    ${labels}
+  </svg>`;
+}
+function aggregateAnswers(list){
+  let yes=0,no=0,na=0,nobs=0;
+  for(const o of list){
+    for(const s of CHECKLIST){
+      const app = sectionApplies(s,o);
+      for(const it of s.items){
+        if(!itemApplies(it,o.auditType)) continue;
+        const a = app ? ((o.answers||{})[it.id]||'') : 'N/A';
+        if(a==='Yes') yes++; else if(a==='No') no++; else if(a==='N/O') nobs++; else if(a==='N/A') na++;
+      }
+    }
+  }
+  return {yes,no,na,nobs};
+}
+function renderAnswerDonut(agg){
+  const segments = [
+    {label:'Yes', value:agg.yes, color:'var(--yes)'},
+    {label:'No', value:agg.no, color:'var(--no)'},
+    {label:'N/A', value:agg.na, color:'var(--na)'},
+    {label:'N/O', value:agg.nobs, color:'var(--warn-ink)'}
+  ];
+  const total = segments.reduce((a,s)=>a+s.value,0);
+  if(!total) return '<p class="formula-note">No answered items yet.</p>';
+  const r=62, cx=84, cy=84, sw=24, C=2*Math.PI*r;
+  let acc=0;
+  const arcs = segments.filter(s=>s.value>0).map(s=>{
+    const frac = s.value/total;
+    const len = frac*C;
+    const rotate = -90 + (acc/total)*360;
+    acc += s.value;
+    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" transform="rotate(${rotate.toFixed(2)} ${cx} ${cy})"><title>${s.label}: ${s.value} (${Math.round(frac*100)}%)</title></circle>`;
+  }).join('');
+  const yesFrac = Math.round((agg.yes/total)*100);
+  return `<div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+    <svg viewBox="0 0 168 168" style="width:140px;height:140px;flex-shrink:0" role="img" aria-label="Breakdown of all answers: Yes, No, N/A, N/O">
+      ${arcs}
+      <text x="${cx}" y="${cy-3}" text-anchor="middle" font-size="24" font-weight="800" fill="var(--ink)">${yesFrac}%</text>
+      <text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="9.5" fill="var(--ink-dim)">Yes</text>
+    </svg>
+    <div style="flex:1;min-width:130px">
+      ${segments.filter(s=>s.value>0).map(s=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px">
+        <span style="width:10px;height:10px;border-radius:3px;background:${s.color};flex-shrink:0"></span>
+        <span style="flex:1;color:var(--ink)">${s.label}</span>
+        <span style="font-weight:700;color:var(--ink-dim)">${s.value} (${Math.round(s.value/total*100)}%)</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+function renderInsights(){
+  const el = document.getElementById('screen-insights');
+  if(!OBS.length){
+    el.innerHTML = `<div class="empty"><h3>Nothing to show yet</h3><p>Save a few rounds and this tab will chart the most common misses.</p></div>`;
+    return;
+  }
+  const monthly = computeMonthly(OBS);
+  const answerAgg = aggregateAnswers(OBS);
+  const noCounts = {};
+  for(const o of OBS){
+    for(const s of CHECKLIST){
+      if(!sectionApplies(s,o)) continue;
+      for(const it of s.items){
+        if(!itemApplies(it,o.auditType)) continue;
+        if((o.answers||{})[it.id]==='No') noCounts[it.id]=(noCounts[it.id]||0)+1;
+      }
+    }
+  }
+  const topMisses = Object.entries(noCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const maxMiss = topMisses.length ? topMisses[0][1] : 1;
+  const bySection = CHECKLIST.map(s=>{
+    const vals = OBS.map(o=>scoreObs(o).sections[s.id]).filter(r=>r.applicable && r.pct!==null);
+    const avg = vals.length ? vals.reduce((a,b)=>a+b.pct,0)/vals.length : null;
+    return {id:s.id, title:s.title, pct:avg};
+  }).filter(s=>s.pct!==null).sort((a,b)=>a.pct-b.pct);
+
+  function itemLookup(id){ for(const s of CHECKLIST){ for(const it of s.items){ if(it.id===id) return it; } } return null; }
+
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px;font-family:inherit">Compliance by month</h3>
+      ${renderMonthlyChart(monthly) || '<p class="formula-note">Add dates across more than one month to see a trend.</p>'}
+    </div>
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px;font-family:inherit">All answers so far</h3>
+      ${renderAnswerDonut(answerAgg)}
+    </div>
+    ${topMisses.length ? `<div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px;font-family:inherit">Most common misses</h3>
+      ${topMisses.map(([id,n])=>{
+        const it=itemLookup(id);
+        return `<div class="hbar-row"><div class="lab"><span class="id">${id}</span>${it?it.text:''}</div><div class="track"><div style="width:${Math.round(n/maxMiss*100)}%"></div></div><div class="val">${n}</div></div>`;
+      }).join('')}
+    </div>` : ''}
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px;font-family:inherit">Weakest sections</h3>
+      ${bySection.map(s=>`<div class="secbar-row"><div class="lab">${s.id}</div><div class="track"><div style="width:${Math.round(s.pct*100)}%;background:${s.pct>=TARGET?'var(--yes)':'var(--no)'}"></div></div><div class="val">${pctLabel(s.pct)}</div></div>`).join('')}
+    </div>
+  `;
+}
+
+/* ===================== Export screen ===================== */
+function renderExport(){
+  const el = document.getElementById('screen-export');
+  el.innerHTML = `
+    <div class="card">
+      <h3 style="font-size:14px;margin-bottom:10px;font-family:inherit">Export to Excel</h3>
+      <p class="formula-note">Downloads every saved round as one workbook laid out like the paper score sheets, with per-item dropdowns, section scores and conditional color formatting. Formulas stay live if you add more rounds directly in Excel.</p>
+      <div class="field" style="margin-top:14px"><label>Compliance target</label>
+        <select id="targetPct">
+          ${[0.95,0.9,0.85,0.8,0.75,0.7].map(v=>`<option value="${v}" ${Math.abs(v-TARGET)<0.001?'selected':''}>${Math.round(v*100)}%</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn" id="exportBtn" style="margin-top:4px">${OBS.length ? 'Download Excel Workbook' : 'No rounds saved yet'}</button>
+    </div>
+  `;
+  const sel = document.getElementById('targetPct');
+  sel.onchange = ()=>{ TARGET = parseFloat(sel.value); persist(); renderHistory(); };
+  const btn = document.getElementById('exportBtn');
+  if(!OBS.length){ btn.disabled = true; return; }
+  btn.onclick = async ()=>{
+    btn.disabled = true; btn.textContent = 'Preparing…';
+    try{
+      await loadExcelJS();
+      const wb = buildWorkbook(OBS, TARGET);
+      const buf = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const filename = `environmental-ipc-audit-${new Date().toISOString().slice(0,10)}.xlsx`;
+      const downloadsCap = (typeof claude !== 'undefined' && claude.use) ? await claude.use('downloads').catch(()=>null) : null;
+      if(downloadsCap){
+        const res = await downloadsCap.save({ filename, data: blob });
+        toast(res.status==='saved' ? 'Downloaded' : 'Sent');
+      } else {
+        // Standalone (e.g. GitHub Pages) fallback — no artifact downloads capability available.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        toast('Downloaded');
+      }
+    }catch(e){
+      console.error(e);
+      if(e && e.code==='declined'){ /* viewer said no — nothing to report */ }
+      else toast('Export failed — ' + ((e&&e.message)||'try again'));
+    }
+    btn.disabled = false; btn.textContent = 'Download Excel Workbook';
+  };
+}
+
+/* ===================== Tabs ===================== */
+function setTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active', s.id==='screen-'+name));
+  if(name==='history') renderHistory();
+  if(name==='insights') renderInsights();
+  if(name==='export') renderExport();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setTab(t.dataset.tab));
+document.getElementById('newBtn').onclick=()=>{
+  DRAFT = emptyDraft();
+  document.getElementById('pageTitle').textContent='New Round';
+  document.getElementById('newBtn').hidden = true;
+  renderNew();
+};
+
+/* ===================== Boot ===================== */
+function applyState(state){
+  OBS = (state && Array.isArray(state.obs)) ? state.obs : [];
+  TARGET = (state && typeof state.target==='number') ? state.target : 0.9;
+}
+function boot(seed){
+  applyState(seed);
+  DRAFT = emptyDraft();
+  renderNew();
+}
+(function init(){
+  const seedTag = document.getElementById('seed-data');
+  let seed = null;
+  if(seedTag){ try{ seed = JSON.parse(seedTag.textContent); }catch(e){} }
+  if(typeof claude !== 'undefined' && claude.use){
+    claude.use('artifact').then(cap=>{
+      artifactCap = cap;
+      boot(seed || {});
+    }).catch(()=>{ boot(seed || loadLocal() || {}); });
+  } else {
+    boot(seed || loadLocal() || {});
+  }
+})();
+</script>
