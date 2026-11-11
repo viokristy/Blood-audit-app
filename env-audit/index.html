@@ -1093,13 +1093,15 @@ function boot(seed){
   const seedTag = document.getElementById('seed-data');
   let seed = null;
   if(seedTag){ try{ seed = JSON.parse(seedTag.textContent); }catch(e){} }
-  if(typeof claude !== 'undefined' && claude.use){
-    claude.use('artifact').then(cap=>{
-      artifactCap = cap;
-      boot(seed || {});
-    }).catch(()=>{ boot(seed || loadLocal() || {}); });
-  } else {
+  // Render immediately from whatever state is already inline (the seed tag, or this
+  // browser's localStorage) — never block first paint waiting on claude.use(), which
+  // can hang or arrive late inside the artifact preview sandbox.
+  if(typeof claude === 'undefined' || !claude || !claude.use){
     boot(seed || loadLocal() || {});
+    return;
   }
+  boot(seed || {});
+  claude.use('artifact').then(cap=>{ artifactCap = cap; })
+    .catch(()=>{ artifactCap = null; });
 })();
 </script>
